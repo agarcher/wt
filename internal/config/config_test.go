@@ -26,7 +26,7 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	tests := []struct {
 		name        string
@@ -141,7 +141,7 @@ func TestLoadNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	_, err = Load(tmpDir)
 	if err == nil {
@@ -154,7 +154,7 @@ func TestExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Should not exist initially
 	if Exists(tmpDir) {
@@ -179,7 +179,7 @@ func TestGetRepoRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Resolve symlinks (macOS /var -> /private/var)
 	tmpDir, err = filepath.EvalSymlinks(tmpDir)
@@ -204,7 +204,7 @@ func TestGetRepoRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get current dir: %v", err)
 	}
-	defer os.Chdir(oldDir)
+	defer func() { _ = os.Chdir(oldDir) }()
 
 	if err := os.Chdir(subDir); err != nil {
 		t.Fatalf("failed to change dir: %v", err)
@@ -227,14 +227,14 @@ func TestGetRepoRootNotInRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Save current dir
 	oldDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current dir: %v", err)
 	}
-	defer os.Chdir(oldDir)
+	defer func() { _ = os.Chdir(oldDir) }()
 
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to change dir: %v", err)

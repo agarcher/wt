@@ -32,7 +32,7 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	// Initialize git repo
@@ -46,11 +46,11 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	// Configure git user
 	cmd = exec.Command("git", "config", "user.email", "test@test.com")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	// Create initial commit
 	testFile := filepath.Join(tmpDir, "README.md")
@@ -61,7 +61,7 @@ func setupTestRepo(t *testing.T) (string, func()) {
 
 	cmd = exec.Command("git", "add", ".")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "commit", "-m", "Initial commit")
 	cmd.Dir = tmpDir
@@ -157,8 +157,8 @@ func TestRootCommand(t *testing.T) {
 
 	// Change to the test repo
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	stdout, _, err := executeCommand("root")
 	if err != nil {
@@ -175,8 +175,8 @@ func TestListCommandEmpty(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	stdout, _, err := executeCommand("list")
 	if err != nil {
@@ -196,8 +196,8 @@ func TestCreateAndDeleteWorkflow(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	// Create a worktree
 	stdout, _, err := executeCommand("create", "test-feature")
@@ -251,8 +251,8 @@ func TestCreateWithExistingBranch(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	// Create a branch first
 	cmd := exec.Command("git", "branch", "existing-branch")
@@ -273,7 +273,7 @@ func TestCreateWithExistingBranch(t *testing.T) {
 	}
 
 	// Cleanup
-	executeCommand("delete", "from-existing", "--force")
+	_, _, _ = executeCommand("delete", "from-existing", "--force")
 }
 
 func TestCreateDuplicateBranchFails(t *testing.T) {
@@ -281,8 +281,8 @@ func TestCreateDuplicateBranchFails(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	// Create first worktree
 	_, _, err := executeCommand("create", "feature-x")
@@ -297,7 +297,7 @@ func TestCreateDuplicateBranchFails(t *testing.T) {
 	}
 
 	// Cleanup
-	executeCommand("delete", "feature-x", "--force", "--delete-branch")
+	_, _, _ = executeCommand("delete", "feature-x", "--force", "--delete-branch")
 }
 
 func TestDeleteNonexistent(t *testing.T) {
@@ -305,8 +305,8 @@ func TestDeleteNonexistent(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	_, _, err := executeCommand("delete", "nonexistent-worktree")
 	if err == nil {
@@ -319,8 +319,8 @@ func TestCdNonexistent(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	_, _, err := executeCommand("cd", "nonexistent-worktree")
 	if err == nil {
@@ -333,8 +333,8 @@ func TestExitCommand(t *testing.T) {
 	defer cleanup()
 
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
-	os.Chdir(repoRoot)
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
 
 	stdout, _, err := executeCommand("exit")
 	if err != nil {

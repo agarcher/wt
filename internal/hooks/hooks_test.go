@@ -51,7 +51,7 @@ func TestRunHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a test script that writes env vars to a file
 	scriptPath := filepath.Join(tmpDir, "test-hook.sh")
@@ -112,7 +112,7 @@ func TestRunHookFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a script that exits with error
 	scriptPath := filepath.Join(tmpDir, "fail-hook.sh")
@@ -147,7 +147,7 @@ func TestRunHookNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	entry := config.HookEntry{
 		Script: "/nonexistent/script.sh",
@@ -193,7 +193,7 @@ func TestRunPreCreateHooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a marker file script
 	markerPath := filepath.Join(tmpDir, "marker.txt")
@@ -237,7 +237,7 @@ func TestRunPostCreateHooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	markerPath := filepath.Join(tmpDir, "marker.txt")
 	scriptPath := filepath.Join(tmpDir, "post-create.sh")

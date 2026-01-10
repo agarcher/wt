@@ -23,7 +23,7 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	// Initialize git repo
@@ -37,11 +37,11 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	// Configure git user for commits
 	cmd = exec.Command("git", "config", "user.email", "test@test.com")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	// Create an initial commit
 	testFile := filepath.Join(tmpDir, "README.md")
@@ -147,7 +147,7 @@ func TestCreateWorktreeFromBranch(t *testing.T) {
 	}
 
 	// Cleanup
-	RemoveWorktree(repoRoot, worktreePath, true)
+	_ = RemoveWorktree(repoRoot, worktreePath, true)
 }
 
 func TestBranchExists(t *testing.T) {
@@ -358,5 +358,5 @@ func TestListWorktrees(t *testing.T) {
 	}
 
 	// Cleanup
-	RemoveWorktree(repoRoot, worktreePath, true)
+	_ = RemoveWorktree(repoRoot, worktreePath, true)
 }
