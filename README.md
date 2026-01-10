@@ -1,5 +1,8 @@
 # wt - Git Worktree Manager
 
+[![CI](https://github.com/agarcher/worktree/actions/workflows/ci.yml/badge.svg)](https://github.com/agarcher/worktree/actions/workflows/ci.yml)
+[![Release](https://github.com/agarcher/worktree/actions/workflows/release.yml/badge.svg)](https://github.com/agarcher/worktree/actions/workflows/release.yml)
+
 A cross-platform CLI tool for managing git worktrees with lifecycle hooks.
 
 ## Features
@@ -14,8 +17,8 @@ A cross-platform CLI tool for managing git worktrees with lifecycle hooks.
 ### From Source
 
 ```bash
-git clone https://github.com/agarcher/wt.git
-cd wt
+git clone https://github.com/agarcher/worktree.git
+cd worktree
 make build
 make install  # Installs to /usr/local/bin
 ```
@@ -23,8 +26,12 @@ make install  # Installs to /usr/local/bin
 ### Homebrew (coming soon)
 
 ```bash
-brew install agarcher/tap/wt
+brew install agarcher/tap/worktree
 ```
+
+### Download Binary
+
+Download the latest release from the [releases page](https://github.com/agarcher/worktree/releases).
 
 ## Shell Integration
 
