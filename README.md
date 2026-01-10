@@ -185,6 +185,49 @@ Managing multiple parallel development streams (especially when working with LLM
 
 `wt` provides all of this with a simple, consistent interface.
 
+## Development
+
+### Building
+
+```bash
+# Build for current platform
+go build -o wt ./cmd/wt
+
+# Build for all platforms
+GOOS=darwin GOARCH=amd64 go build -o wt-darwin-amd64 ./cmd/wt
+GOOS=darwin GOARCH=arm64 go build -o wt-darwin-arm64 ./cmd/wt
+GOOS=linux GOARCH=amd64 go build -o wt-linux-amd64 ./cmd/wt
+GOOS=linux GOARCH=arm64 go build -o wt-linux-arm64 ./cmd/wt
+```
+
+### Testing
+
+```bash
+go test -v ./...
+```
+
+### Linting
+
+```bash
+golangci-lint run ./...
+```
+
+### Releasing
+
+Releases are automated via GitHub Actions. To create a new release:
+
+1. Update the version in your code if needed
+2. Create and push a version tag:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+3. The release workflow will automatically:
+   - Run tests
+   - Build binaries for all platforms (darwin/linux, amd64/arm64)
+   - Create a GitHub release with the binaries
+   - Generate SHA256 checksums
+
 ## License
 
 MIT
