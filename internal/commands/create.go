@@ -1,0 +1,111 @@
+package commands
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/agarcher/wt/internal/config"
+	"github.com/agarcher/wt/internal/git"
+	"github.com/agarcher/wt/internal/hooks"
+	"github.com/spf13/cobra"
+)
+
+var (
+	createBranch string
+)
+
+func init() {
+	createCmd.Flags().StringVarP(&createBranch, "branch", "b", "", "Use existing branch instead of creating a new one")
+	rootCmd.AddCommand(createCmd)
+}
+
+var createCmd = &cobra.Command{
+	Use:   "create <name>",
+	Short: "Create a new worktree",
+	Long: `Create a new git worktree with the specified name.
+
+By default, a new branch with the same name will be created.
+Use --branch to checkout an existing branch instead.
+
+The worktree will be created in the directory specified by worktree_dir
+in your .wt.yaml configuration (default: worktrees/).
+
+After creation, any post_create hooks defined in .wt.yaml will be executed.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runCreate,
+}
+
+func runCreate(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	// Find the main repository root
+	repoRoot, err := config.GetMainRepoRoot()
+	if err != nil {
+		return fmt.Errorf("not in a git repository: %w", err)
+	}
+
+	// Load configuration
+	cfg, err := config.Load(repoRoot)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w (is .wt.yaml present?)", err)
+	}
+
+	// Determine the worktree path
+	worktreePath := filepath.Join(repoRoot, cfg.WorktreeDir, name)
+
+	// Determine the branch name
+	branchName := createBranch
+	if branchName == "" {
+		// Apply branch pattern
+		branchName = strings.ReplaceAll(cfg.BranchPattern, "{name}", name)
+	}
+
+	// Create hook environment
+	env := &hooks.Env{
+		Name:        name,
+		Path:        worktreePath,
+		Branch:      branchName,
+		RepoRoot:    repoRoot,
+		WorktreeDir: cfg.WorktreeDir,
+	}
+
+	// Run pre-create hooks
+	if err := hooks.RunPreCreate(cfg, env); err != nil {
+		return fmt.Errorf("pre-create hook failed: %w", err)
+	}
+
+	// Create the worktree
+	if createBranch != "" {
+		// Use existing branch
+		if !git.BranchExists(repoRoot, createBranch) {
+			return fmt.Errorf("branch %q does not exist", createBranch)
+		}
+		fmt.Printf("Creating worktree %q from branch %q...\n", name, createBranch)
+		if err := git.CreateWorktreeFromBranch(repoRoot, worktreePath, createBranch); err != nil {
+			return fmt.Errorf("failed to create worktree: %w", err)
+		}
+	} else {
+		// Create new branch
+		if git.BranchExists(repoRoot, branchName) {
+			return fmt.Errorf("branch %q already exists (use --branch to checkout existing branch)", branchName)
+		}
+		fmt.Printf("Creating worktree %q with new branch %q...\n", name, branchName)
+		if err := git.CreateWorktree(repoRoot, worktreePath, branchName); err != nil {
+			return fmt.Errorf("failed to create worktree: %w", err)
+		}
+	}
+
+	// Run post-create hooks
+	if err := hooks.RunPostCreate(cfg, env); err != nil {
+		fmt.Printf("Warning: post-create hook failed: %v\n", err)
+		// Don't fail the whole operation for post-create hooks
+	}
+
+	fmt.Printf("Worktree %q created successfully\n", name)
+
+	// Output the path on the last line for the shell wrapper to use
+	fmt.Println(worktreePath)
+
+	return nil
+}

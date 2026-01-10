@@ -1,0 +1,16 @@
+# wt configuration for this repository
+version: 1
+
+# Where worktrees are stored (relative to repo root)
+worktree_dir: worktrees
+
+# Branch naming pattern
+# Available variables: {name}
+branch_pattern: "{name}"
+
+# Lifecycle hooks (all optional)
+# hooks:
+#   post_create:
+#     - script: ./scripts/setup.sh
+#   pre_delete:
+#     - script: ./scripts/cleanup.sh

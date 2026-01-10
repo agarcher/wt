@@ -1,0 +1,17 @@
+# Build output
+/build/
+
+# Worktrees directory (managed by wt)
+/worktrees/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Test coverage
+coverage.out
