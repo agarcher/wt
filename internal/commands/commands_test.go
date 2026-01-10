@@ -183,11 +183,8 @@ func TestListCommandEmpty(t *testing.T) {
 		t.Fatalf("list command failed: %v", err)
 	}
 
-	if !strings.Contains(stdout, "Worktrees in") {
-		t.Error("expected worktree list header")
-	}
-	if !strings.Contains(stdout, "(main repo)") {
-		t.Error("expected main repo in list")
+	if !strings.Contains(stdout, "No worktrees") {
+		t.Errorf("expected 'No worktrees' message, got: %s", stdout)
 	}
 }
 

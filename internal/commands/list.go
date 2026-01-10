@@ -52,7 +52,14 @@ func runList(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	worktreesDir := filepath.Join(repoRoot, cfg.WorktreeDir)
 
-	cmd.Printf("Worktrees in %s:\n\n", repoRoot)
+	// Collect managed worktrees (excluding main repo)
+	type worktreeInfo struct {
+		name          string
+		branch        string
+		statusStr     string
+		currentMarker string
+	}
+	var managedWorktrees []worktreeInfo
 
 	for _, wt := range worktrees {
 		// Skip the main worktree
@@ -84,7 +91,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		// Build status string
 		statusStr := ""
 		if len(status) > 0 {
-			statusStr = fmt.Sprintf(" [%s]", strings.Join(status, ", "))
+			statusStr = fmt.Sprintf("[%s]", strings.Join(status, ", "))
 		}
 
 		// Check if this is the current worktree
@@ -93,16 +100,29 @@ func runList(cmd *cobra.Command, args []string) error {
 			currentMarker = "* "
 		}
 
-		cmd.Printf("%s%-20s  %-30s%s\n", currentMarker, name, wt.Branch, statusStr)
+		managedWorktrees = append(managedWorktrees, worktreeInfo{
+			name:          name,
+			branch:        wt.Branch,
+			statusStr:     statusStr,
+			currentMarker: currentMarker,
+		})
 	}
 
-	// Also list main repo
-	mainBranch, _ := git.GetCurrentBranch(repoRoot)
-	currentMarker := "  "
-	if cwd == repoRoot || (!strings.HasPrefix(cwd, worktreesDir) && strings.HasPrefix(cwd, repoRoot)) {
-		currentMarker = "* "
+	// If no worktrees, display message and return
+	if len(managedWorktrees) == 0 {
+		cmd.Println("No worktrees")
+		return nil
 	}
-	cmd.Printf("\n%s%-20s  %-30s (main repo)\n", currentMarker, ".", mainBranch)
+
+	// Print header and worktrees
+	cmd.Printf("  %-20s  %s\n", "NAME", "BRANCH")
+	for _, wt := range managedWorktrees {
+		if wt.statusStr != "" {
+			cmd.Printf("%s%-20s  %-30s %s\n", wt.currentMarker, wt.name, wt.branch, wt.statusStr)
+		} else {
+			cmd.Printf("%s%-20s  %s\n", wt.currentMarker, wt.name, wt.branch)
+		}
+	}
 
 	return nil
 }
