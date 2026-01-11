@@ -29,8 +29,11 @@ Shows each worktree with:
 - Name
 - Branch
 - Commits ahead/behind main branch (↑↓)
-- Uncommitted changes indicator
-- Merged status indicator
+- Status: [new], [in_progress], [merged], [dirty]
+  - new: no commits yet (still on initial commit)
+  - in_progress: has unmerged commits (bold)
+  - merged: branch has been merged to main
+  - dirty: has uncommitted changes (bold, additive)
 
 Use -v/--verbose for detailed multi-line output including worktree age.`,
 	RunE: runList,
@@ -128,8 +131,15 @@ func runList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// ANSI codes for bold text
+const (
+	bold  = "\033[1m"
+	reset = "\033[0m"
+)
+
 // formatCompactStatus builds the compact status string with arrows
-// Status priority: uncommitted > new > merged (mutually exclusive for the state indicator)
+// State indicators (mutually exclusive): new, in_progress, merged
+// dirty is additive and can appear alongside any state
 func formatCompactStatus(status *git.WorktreeStatus) string {
 	var parts []string
 
@@ -140,13 +150,26 @@ func formatCompactStatus(status *git.WorktreeStatus) string {
 		parts = append(parts, fmt.Sprintf("↓%d", status.CommitsBehind))
 	}
 
-	// State indicator: uncommitted takes priority, then new, then merged
-	if status.HasUncommittedChanges {
-		parts = append(parts, "[uncommitted]")
-	} else if status.IsNew {
-		parts = append(parts, "[new]")
+	// Build status tags (state is mutually exclusive, dirty is additive)
+	var statusTags []string
+
+	// State indicator: new > in_progress > merged (mutually exclusive)
+	if status.IsNew {
+		statusTags = append(statusTags, "new")
+	} else if status.CommitsAhead > 0 && !status.IsMerged {
+		// in_progress: has commits ahead that aren't merged
+		statusTags = append(statusTags, bold+"in_progress"+reset)
 	} else if status.IsMerged && status.CommitsAhead == 0 {
-		parts = append(parts, "[merged]")
+		statusTags = append(statusTags, "merged")
+	}
+
+	// dirty is additive - can appear with any state
+	if status.HasUncommittedChanges {
+		statusTags = append(statusTags, bold+"dirty"+reset)
+	}
+
+	if len(statusTags) > 0 {
+		parts = append(parts, "["+strings.Join(statusTags, ", ")+"]")
 	}
 
 	return strings.Join(parts, " ")
@@ -193,17 +216,25 @@ func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo) {
 				wt.status.CommitsBehind, behindStr)
 		}
 
-		// Status indicator: uncommitted > new > merged (mutually exclusive)
-		var statusLabel string
-		if wt.status.HasUncommittedChanges {
-			statusLabel = "uncommitted changes"
-		} else if wt.status.IsNew {
-			statusLabel = "new"
+		// Status: state is mutually exclusive (new, in_progress, merged), dirty is additive
+		var statusLabels []string
+
+		// State indicator: new > in_progress > merged (mutually exclusive)
+		if wt.status.IsNew {
+			statusLabels = append(statusLabels, "new")
+		} else if wt.status.CommitsAhead > 0 && !wt.status.IsMerged {
+			statusLabels = append(statusLabels, bold+"in_progress"+reset)
 		} else if wt.status.IsMerged && wt.status.CommitsAhead == 0 {
-			statusLabel = "merged"
+			statusLabels = append(statusLabels, "merged")
 		}
-		if statusLabel != "" {
-			_, _ = fmt.Fprintf(out, "  Status: %s\n", statusLabel)
+
+		// dirty is additive
+		if wt.status.HasUncommittedChanges {
+			statusLabels = append(statusLabels, bold+"dirty"+reset)
+		}
+
+		if len(statusLabels) > 0 {
+			_, _ = fmt.Fprintf(out, "  Status: %s\n", strings.Join(statusLabels, ", "))
 		}
 	}
 	_, _ = fmt.Fprintln(out, separator)
