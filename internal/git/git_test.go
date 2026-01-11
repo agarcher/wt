@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // setupTestRepo creates a temporary git repository for testing
@@ -359,4 +360,358 @@ func TestListWorktrees(t *testing.T) {
 
 	// Cleanup
 	_ = RemoveWorktree(repoRoot, worktreePath, true)
+}
+
+func TestGetCommitsAheadBehind(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	// Get the main branch name
+	mainBranch, err := GetCurrentBranch(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get current branch: %v", err)
+	}
+
+	// Create a worktree with a new branch
+	worktreePath := filepath.Join(repoRoot, "worktrees", "test-wt")
+	if err := CreateWorktree(repoRoot, worktreePath, "test-branch"); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+	defer func() { _ = RemoveWorktree(repoRoot, worktreePath, true) }()
+
+	// Initially should be 0 ahead, 0 behind
+	ahead, behind, err := GetCommitsAheadBehind(repoRoot, worktreePath, mainBranch)
+	if err != nil {
+		t.Fatalf("failed to get commits ahead/behind: %v", err)
+	}
+	if ahead != 0 || behind != 0 {
+		t.Errorf("expected 0 ahead, 0 behind; got %d ahead, %d behind", ahead, behind)
+	}
+
+	// Add a commit in the worktree
+	testFile := filepath.Join(worktreePath, "new-file.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = worktreePath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Add new file")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Now should be 1 ahead, 0 behind
+	ahead, behind, err = GetCommitsAheadBehind(repoRoot, worktreePath, mainBranch)
+	if err != nil {
+		t.Fatalf("failed to get commits ahead/behind: %v", err)
+	}
+	if ahead != 1 || behind != 0 {
+		t.Errorf("expected 1 ahead, 0 behind; got %d ahead, %d behind", ahead, behind)
+	}
+
+	// Add a commit on main branch
+	mainFile := filepath.Join(repoRoot, "main-file.txt")
+	if err := os.WriteFile(mainFile, []byte("main"), 0644); err != nil {
+		t.Fatalf("failed to create main file: %v", err)
+	}
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = repoRoot
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Add main file")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit on main: %v", err)
+	}
+
+	// Now should be 1 ahead, 1 behind
+	ahead, behind, err = GetCommitsAheadBehind(repoRoot, worktreePath, mainBranch)
+	if err != nil {
+		t.Fatalf("failed to get commits ahead/behind: %v", err)
+	}
+	if ahead != 1 || behind != 1 {
+		t.Errorf("expected 1 ahead, 1 behind; got %d ahead, %d behind", ahead, behind)
+	}
+}
+
+func TestGetMergedBranches(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	mainBranch, err := GetCurrentBranch(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get current branch: %v", err)
+	}
+
+	// Create a branch and merge it
+	cmd := exec.Command("git", "branch", "merged-branch")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create branch: %v", err)
+	}
+
+	// Create an unmerged branch with a commit
+	cmd = exec.Command("git", "checkout", "-b", "unmerged-branch")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create unmerged branch: %v", err)
+	}
+	testFile := filepath.Join(repoRoot, "unmerged.txt")
+	if err := os.WriteFile(testFile, []byte("unmerged"), 0644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = repoRoot
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Unmerged commit")
+	cmd.Dir = repoRoot
+	_ = cmd.Run()
+
+	// Go back to main
+	cmd = exec.Command("git", "checkout", mainBranch)
+	cmd.Dir = repoRoot
+	_ = cmd.Run()
+
+	merged, err := GetMergedBranches(repoRoot, mainBranch)
+	if err != nil {
+		t.Fatalf("failed to get merged branches: %v", err)
+	}
+
+	// merged-branch should be in the list (it's at same point as main)
+	if !merged["merged-branch"] {
+		t.Error("expected merged-branch to be in merged list")
+	}
+
+	// unmerged-branch should not be in the list
+	if merged["unmerged-branch"] {
+		t.Error("expected unmerged-branch to not be in merged list")
+	}
+}
+
+func TestIsBranchMerged(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	mainBranch, err := GetCurrentBranch(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get current branch: %v", err)
+	}
+
+	// Create a branch at the same point as main
+	cmd := exec.Command("git", "branch", "merged-branch")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create branch: %v", err)
+	}
+
+	isMerged, err := IsBranchMerged(repoRoot, "merged-branch", mainBranch)
+	if err != nil {
+		t.Fatalf("failed to check if branch merged: %v", err)
+	}
+	if !isMerged {
+		t.Error("expected merged-branch to be merged")
+	}
+
+	isNonExistentMerged, _ := IsBranchMerged(repoRoot, "non-existent", mainBranch)
+	if isNonExistentMerged {
+		t.Error("expected non-existent branch to not be merged")
+	}
+}
+
+func TestSetAndGetWorktreeCreatedAt(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	// Create a worktree
+	worktreePath := filepath.Join(repoRoot, "worktrees", "test-wt")
+	worktreeName := "test-wt"
+	if err := CreateWorktree(repoRoot, worktreePath, "test-branch"); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+	defer func() { _ = RemoveWorktree(repoRoot, worktreePath, true) }()
+
+	// Initially should return zero time
+	createdAt, err := GetWorktreeCreatedAt(repoRoot, worktreeName)
+	if err != nil {
+		t.Fatalf("failed to get created at: %v", err)
+	}
+	if !createdAt.IsZero() {
+		t.Errorf("expected zero time, got %v", createdAt)
+	}
+
+	// Set creation time
+	now := time.Now().Truncate(time.Second) // Truncate to second precision
+	if err := SetWorktreeCreatedAt(repoRoot, worktreeName, now); err != nil {
+		t.Fatalf("failed to set created at: %v", err)
+	}
+
+	// Get it back
+	createdAt, err = GetWorktreeCreatedAt(repoRoot, worktreeName)
+	if err != nil {
+		t.Fatalf("failed to get created at: %v", err)
+	}
+	if createdAt.Unix() != now.Unix() {
+		t.Errorf("expected %v, got %v", now, createdAt)
+	}
+}
+
+func TestGetWorktreeStatus(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	mainBranch, err := GetCurrentBranch(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get current branch: %v", err)
+	}
+
+	// Create a worktree
+	worktreePath := filepath.Join(repoRoot, "worktrees", "test-wt")
+	worktreeName := "test-wt"
+	branchName := "test-branch"
+	if err := CreateWorktree(repoRoot, worktreePath, branchName); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+	defer func() { _ = RemoveWorktree(repoRoot, worktreePath, true) }()
+
+	// Set creation time
+	now := time.Now()
+	_ = SetWorktreeCreatedAt(repoRoot, worktreeName, now)
+
+	// Get status
+	status, err := GetWorktreeStatus(repoRoot, worktreePath, worktreeName, branchName, mainBranch, nil)
+	if err != nil {
+		t.Fatalf("failed to get worktree status: %v", err)
+	}
+
+	// Should have no uncommitted changes
+	if status.HasUncommittedChanges {
+		t.Error("expected no uncommitted changes")
+	}
+
+	// Should be 0 ahead, 0 behind
+	if status.CommitsAhead != 0 || status.CommitsBehind != 0 {
+		t.Errorf("expected 0 ahead, 0 behind; got %d ahead, %d behind", status.CommitsAhead, status.CommitsBehind)
+	}
+
+	// Should be merged (at same point as main)
+	if !status.IsMerged {
+		t.Error("expected branch to be merged")
+	}
+
+	// Should have creation time
+	if status.CreatedAt.Unix() != now.Unix() {
+		t.Errorf("expected created at %v, got %v", now, status.CreatedAt)
+	}
+
+	// Add uncommitted changes
+	testFile := filepath.Join(worktreePath, "uncommitted.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+
+	status, err = GetWorktreeStatus(repoRoot, worktreePath, worktreeName, branchName, mainBranch, nil)
+	if err != nil {
+		t.Fatalf("failed to get worktree status: %v", err)
+	}
+	if !status.HasUncommittedChanges {
+		t.Error("expected uncommitted changes")
+	}
+}
+
+func TestSetAndGetWorktreeInitialCommit(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	// Create a worktree
+	worktreePath := filepath.Join(repoRoot, "worktrees", "test-wt")
+	worktreeName := "test-wt"
+	if err := CreateWorktree(repoRoot, worktreePath, "test-branch"); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+	defer func() { _ = RemoveWorktree(repoRoot, worktreePath, true) }()
+
+	// Initially should return empty string
+	initialCommit, err := GetWorktreeInitialCommit(repoRoot, worktreeName)
+	if err != nil {
+		t.Fatalf("failed to get initial commit: %v", err)
+	}
+	if initialCommit != "" {
+		t.Errorf("expected empty string, got %q", initialCommit)
+	}
+
+	// Get current commit
+	currentCommit, err := GetCurrentCommit(worktreePath)
+	if err != nil {
+		t.Fatalf("failed to get current commit: %v", err)
+	}
+
+	// Set initial commit
+	if err := SetWorktreeInitialCommit(repoRoot, worktreeName, currentCommit); err != nil {
+		t.Fatalf("failed to set initial commit: %v", err)
+	}
+
+	// Get it back
+	initialCommit, err = GetWorktreeInitialCommit(repoRoot, worktreeName)
+	if err != nil {
+		t.Fatalf("failed to get initial commit: %v", err)
+	}
+	if initialCommit != currentCommit {
+		t.Errorf("expected %q, got %q", currentCommit, initialCommit)
+	}
+}
+
+func TestIsNewStatus(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	mainBranch, err := GetCurrentBranch(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get current branch: %v", err)
+	}
+
+	// Create a worktree
+	worktreePath := filepath.Join(repoRoot, "worktrees", "test-wt")
+	worktreeName := "test-wt"
+	branchName := "test-branch"
+	if err := CreateWorktree(repoRoot, worktreePath, branchName); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+	defer func() { _ = RemoveWorktree(repoRoot, worktreePath, true) }()
+
+	// Store initial commit (simulating what create command does)
+	initialCommit, _ := GetCurrentCommit(worktreePath)
+	_ = SetWorktreeInitialCommit(repoRoot, worktreeName, initialCommit)
+
+	// Should be marked as new (still on initial commit)
+	status, err := GetWorktreeStatus(repoRoot, worktreePath, worktreeName, branchName, mainBranch, nil)
+	if err != nil {
+		t.Fatalf("failed to get worktree status: %v", err)
+	}
+	if !status.IsNew {
+		t.Error("expected IsNew to be true")
+	}
+
+	// Add a commit in the worktree
+	testFile := filepath.Join(worktreePath, "new-file.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = worktreePath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Add new file")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Should no longer be new
+	status, err = GetWorktreeStatus(repoRoot, worktreePath, worktreeName, branchName, mainBranch, nil)
+	if err != nil {
+		t.Fatalf("failed to get worktree status: %v", err)
+	}
+	if status.IsNew {
+		t.Error("expected IsNew to be false after committing")
+	}
 }

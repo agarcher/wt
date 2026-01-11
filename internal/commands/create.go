@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/git"
@@ -93,6 +94,16 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		cmd.Printf("Creating worktree %q with new branch %q...\n", name, branchName)
 		if err := git.CreateWorktree(repoRoot, worktreePath, branchName); err != nil {
 			return fmt.Errorf("failed to create worktree: %w", err)
+		}
+	}
+
+	// Store creation metadata for status tracking
+	if err := git.SetWorktreeCreatedAt(repoRoot, name, time.Now()); err != nil {
+		cmd.Printf("Warning: could not store creation time: %v\n", err)
+	}
+	if initialCommit, err := git.GetCurrentCommit(worktreePath); err == nil {
+		if err := git.SetWorktreeInitialCommit(repoRoot, name, initialCommit); err != nil {
+			cmd.Printf("Warning: could not store initial commit: %v\n", err)
 		}
 	}
 
