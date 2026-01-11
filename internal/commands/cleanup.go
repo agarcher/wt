@@ -141,12 +141,12 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 
 	// Display candidates
 	out := cmd.OutOrStdout()
-	fmt.Fprintln(out, "Worktrees eligible for cleanup:")
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, "Worktrees eligible for cleanup:")
+	_, _ = fmt.Fprintln(out)
 	for _, c := range candidates {
-		fmt.Fprintf(out, "  %-20s  %-30s  (%s)\n", c.name, c.branch, c.reason)
+		_, _ = fmt.Fprintf(out, "  %-20s  %-30s  (%s)\n", c.name, c.branch, c.reason)
 	}
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 
 	// Dry run - just show what would be deleted
 	if cleanupDryRun {

@@ -114,7 +114,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// If no worktrees, display message and return
 	if len(managedWorktrees) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No worktrees")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No worktrees")
 		return nil
 	}
 

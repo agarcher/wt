@@ -93,7 +93,7 @@ func executeCommand(args ...string) (string, string, error) {
 
 	// Reset help flag on all subcommands (gets set by --help tests)
 	for _, cmd := range rootCmd.Commands() {
-		cmd.Flags().Set("help", "false")
+		_ = cmd.Flags().Set("help", "false")
 	}
 
 	// Reset the command for fresh execution
