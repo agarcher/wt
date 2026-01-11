@@ -13,6 +13,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     outputs:
+      tag: ${{ steps.version.outputs.TAG }}
       version: ${{ steps.version.outputs.VERSION }}
       sha_darwin_amd64: ${{ steps.checksums.outputs.SHA_DARWIN_AMD64 }}
       sha_darwin_arm64: ${{ steps.checksums.outputs.SHA_DARWIN_ARM64 }}
@@ -40,7 +41,10 @@ jobs:
 
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          echo "TAG=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build binaries
         env:
@@ -68,10 +72,12 @@ jobs:
         id: checksums
         run: |
           cd dist
-          echo "SHA_DARWIN_AMD64=$(grep wt-darwin-amd64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "SHA_DARWIN_ARM64=$(grep wt-darwin-arm64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "SHA_LINUX_AMD64=$(grep wt-linux-amd64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "SHA_LINUX_ARM64=$(grep wt-linux-arm64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          {
+            echo "SHA_DARWIN_AMD64=$(grep -F 'wt-darwin-amd64.tar.gz' checksums.txt | awk '{print $1}')"
+            echo "SHA_DARWIN_ARM64=$(grep -F 'wt-darwin-arm64.tar.gz' checksums.txt | awk '{print $1}')"
+            echo "SHA_LINUX_AMD64=$(grep -F 'wt-linux-amd64.tar.gz' checksums.txt | awk '{print $1}')"
+            echo "SHA_LINUX_ARM64=$(grep -F 'wt-linux-arm64.tar.gz' checksums.txt | awk '{print $1}')"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -110,10 +116,7 @@ jobs:
           SHA_DARWIN_ARM64: ${{ needs.release.outputs.sha_darwin_arm64 }}
           SHA_LINUX_AMD64: ${{ needs.release.outputs.sha_linux_amd64 }}
           SHA_LINUX_ARM64: ${{ needs.release.outputs.sha_linux_arm64 }}
-        run: |
-          # Strip the 'v' prefix from version for formula
-          export VERSION="${VERSION#v}"
-          ./scripts/generate-formula.sh > homebrew-tap/Formula/wt.rb
+        run: ./scripts/generate-formula.sh > homebrew-tap/Formula/wt.rb
 
       - name: Commit and push
         run: |
@@ -121,5 +124,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/wt.rb
-          git commit -m "Update wt to ${{ needs.release.outputs.version }}"
+          git commit -m "Update wt to ${{ needs.release.outputs.tag }}"
           git push

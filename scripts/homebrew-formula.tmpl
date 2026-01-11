@@ -3,36 +3,37 @@
 
 class Wt < Formula
   desc "Git worktree manager with lifecycle hooks"
-  homepage "https://github.com/agarcher/wt"
+  homepage "https://github.com/agarcher/worktree"
   version "{{VERSION}}"
   license "MIT"
 
   on_macos do
     on_intel do
-      url "https://github.com/agarcher/wt/releases/download/v{{VERSION}}/wt-darwin-amd64.tar.gz"
+      url "https://github.com/agarcher/worktree/releases/download/v{{VERSION}}/wt-darwin-amd64.tar.gz"
       sha256 "{{SHA_DARWIN_AMD64}}"
     end
 
     on_arm do
-      url "https://github.com/agarcher/wt/releases/download/v{{VERSION}}/wt-darwin-arm64.tar.gz"
+      url "https://github.com/agarcher/worktree/releases/download/v{{VERSION}}/wt-darwin-arm64.tar.gz"
       sha256 "{{SHA_DARWIN_ARM64}}"
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/agarcher/wt/releases/download/v{{VERSION}}/wt-linux-amd64.tar.gz"
+      url "https://github.com/agarcher/worktree/releases/download/v{{VERSION}}/wt-linux-amd64.tar.gz"
       sha256 "{{SHA_LINUX_AMD64}}"
     end
 
     on_arm do
-      url "https://github.com/agarcher/wt/releases/download/v{{VERSION}}/wt-linux-arm64.tar.gz"
+      url "https://github.com/agarcher/worktree/releases/download/v{{VERSION}}/wt-linux-arm64.tar.gz"
       sha256 "{{SHA_LINUX_ARM64}}"
     end
   end
 
   def install
-    binary_name = "wt-#{OS.kernel_name.downcase}-#{Hardware::CPU.arch == :arm64 ? "arm64" : "amd64"}"
+    arch = Hardware::CPU.intel? ? "amd64" : "arm64"
+    binary_name = "wt-#{OS.kernel_name.downcase}-#{arch}"
     bin.install binary_name => "wt"
 
     generate_completions_from_executable(bin/"wt", "completion")
@@ -54,6 +55,6 @@ class Wt < Formula
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/wt --version")
+    assert_match version.to_s, shell_output("#{bin}/wt version")
   end
 end
