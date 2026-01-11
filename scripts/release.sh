@@ -44,6 +44,40 @@ if [[ -z "$RELEASE_NOTES" ]]; then
     usage
 fi
 
+# Safety checks
+cd "$REPO_ROOT"
+
+# Check we're on main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$CURRENT_BRANCH" != "main" ]]; then
+    echo "Error: Must be on main branch (currently on '$CURRENT_BRANCH')"
+    exit 1
+fi
+
+# Fetch latest from origin
+echo "Fetching from origin..."
+git fetch origin main
+
+# Check working directory is clean
+if [[ -n $(git status --porcelain) ]]; then
+    echo "Error: Working directory is dirty. Commit or stash changes first."
+    exit 1
+fi
+
+# Check we're up to date with origin/main
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+if [[ "$LOCAL" != "$REMOTE" ]]; then
+    echo "Error: Local main is not up to date with origin/main"
+    echo "  Local:  $LOCAL"
+    echo "  Remote: $REMOTE"
+    echo "Run 'git pull' first."
+    exit 1
+fi
+
+echo "Pre-flight checks passed."
+echo ""
+
 # Read current version
 if [[ ! -f "$VERSION_FILE" ]]; then
     echo "Error: VERSION file not found at $VERSION_FILE"
