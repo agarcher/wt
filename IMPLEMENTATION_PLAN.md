@@ -9,7 +9,7 @@ A cross-platform, brew-installable CLI for managing git worktrees with lifecycle
 | Phase 1: Core Binary | ✅ Complete | All commands working |
 | Phase 2: Shell Integration | ✅ Complete | Functions and completions done |
 | Phase 3: Hook System | ✅ Complete | Full lifecycle hooks |
-| Phase 4: Distribution | ⚠️ Partial | CI/CD done, Homebrew tap pending |
+| Phase 4: Distribution | ✅ Complete | CI/CD and Homebrew tap ready |
 | Phase 5: Documentation | ✅ Complete | README with examples |
 
 ## Overview
@@ -307,47 +307,32 @@ install:         # Install to /usr/local/bin
 release:         # Create release artifacts
 ```
 
-### 4.2 Homebrew Formula ❌ Tap not set up
+### 4.2 Homebrew Formula ✅ Complete
 
-```ruby
-class Wt < Formula
-  desc "Git worktree manager with lifecycle hooks"
-  homepage "https://github.com/agarcher/wt"
-  url "https://github.com/agarcher/wt/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "..."
-  license "MIT"
+**Setup requirements:**
 
-  depends_on "go" => :build
+1. Create tap repository: `github.com/agarcher/homebrew-tap`
+2. Create `Formula/` directory in the tap repo
+3. Add `HOMEBREW_TAP_TOKEN` secret to the main repo (GitHub PAT with repo access to tap)
 
-  def install
-    system "go", "build", "-o", bin/"wt", "./cmd/wt"
-
-    # Install shell completions
-    zsh_completion.install "scripts/completions/_wt"
-    bash_completion.install "scripts/completions/wt.bash"
-    fish_completion.install "scripts/completions/wt.fish"
-  end
-
-  def caveats
-    <<~EOS
-      To enable wt, add the following to your shell rc file:
-
-      For zsh (~/.zshrc):
-        eval "$(wt init zsh)"
-
-      For bash (~/.bashrc):
-        eval "$(wt init bash)"
-
-      For fish (~/.config/fish/config.fish):
-        wt init fish | source
-    EOS
-  end
-
-  test do
-    system "#{bin}/wt", "--version"
-  end
-end
+**Installation:**
+```bash
+brew install agarcher/tap/wt
 ```
+
+Or tap first:
+```bash
+brew tap agarcher/tap
+brew install wt
+```
+
+**Formula location:** `Formula/wt.rb` (template in main repo, auto-updated in tap on release)
+
+The release workflow automatically:
+- Builds binaries for darwin/linux on amd64/arm64
+- Computes SHA256 checksums
+- Updates the tap formula with new version and checksums
+- Skips tap update for pre-release versions (-rc, -beta, -alpha)
 
 ### 4.3 GitHub Actions CI/CD ✅
 
@@ -389,7 +374,7 @@ Provide starter configs for common use cases:
 7. ✅ **Cleanup command** - smart worktree cleanup
 8. ✅ **Completions** - shell completions generation
 9. ✅ **Build/release** - Makefile, GitHub Actions CI/CD
-10. ❌ **Homebrew formula** - tap setup, formula
+10. ✅ **Homebrew formula** - tap setup, formula, auto-update on release
 11. ✅ **Documentation** - README, examples
 
 ---

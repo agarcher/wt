@@ -12,6 +12,12 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      sha_darwin_amd64: ${{ steps.checksums.outputs.SHA_DARWIN_AMD64 }}
+      sha_darwin_arm64: ${{ steps.checksums.outputs.SHA_DARWIN_ARM64 }}
+      sha_linux_amd64: ${{ steps.checksums.outputs.SHA_LINUX_AMD64 }}
+      sha_linux_arm64: ${{ steps.checksums.outputs.SHA_LINUX_ARM64 }}
 
     steps:
       - name: Checkout code
@@ -58,6 +64,15 @@ jobs:
           # Generate checksums
           sha256sum *.tar.gz > checksums.txt
 
+      - name: Extract checksums
+        id: checksums
+        run: |
+          cd dist
+          echo "SHA_DARWIN_AMD64=$(grep wt-darwin-amd64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "SHA_DARWIN_ARM64=$(grep wt-darwin-arm64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "SHA_LINUX_AMD64=$(grep wt-linux-amd64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "SHA_LINUX_ARM64=$(grep wt-linux-arm64.tar.gz checksums.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -69,3 +84,108 @@ jobs:
           prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ !contains(github.ref, '-rc') && !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
+
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: agarcher/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          SHA_DARWIN_AMD64: ${{ needs.release.outputs.sha_darwin_amd64 }}
+          SHA_DARWIN_ARM64: ${{ needs.release.outputs.sha_darwin_arm64 }}
+          SHA_LINUX_AMD64: ${{ needs.release.outputs.sha_linux_amd64 }}
+          SHA_LINUX_ARM64: ${{ needs.release.outputs.sha_linux_arm64 }}
+        run: |
+          # Strip the 'v' prefix from version for formula
+          FORMULA_VERSION="${VERSION#v}"
+
+          cat > homebrew-tap/Formula/wt.rb << 'EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Wt < Formula
+            desc "Git worktree manager with lifecycle hooks"
+            homepage "https://github.com/agarcher/wt"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              on_intel do
+                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-darwin-amd64.tar.gz"
+                sha256 "SHA_DARWIN_AMD64_PLACEHOLDER"
+              end
+
+              on_arm do
+                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-darwin-arm64.tar.gz"
+                sha256 "SHA_DARWIN_ARM64_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-linux-amd64.tar.gz"
+                sha256 "SHA_LINUX_AMD64_PLACEHOLDER"
+              end
+
+              on_arm do
+                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-linux-arm64.tar.gz"
+                sha256 "SHA_LINUX_ARM64_PLACEHOLDER"
+              end
+            end
+
+            def install
+              # Determine binary name based on OS and architecture
+              binary_name = "wt-#{OS.kernel_name.downcase}-#{Hardware::CPU.arch == :arm64 ? "arm64" : "amd64"}"
+              bin.install binary_name => "wt"
+
+              # Install shell completions
+              generate_completions_from_executable(bin/"wt", "completion")
+            end
+
+            def caveats
+              <<~EOS
+                To enable wt shell integration, add the following to your shell config:
+
+                For zsh (~/.zshrc):
+                  eval "$(wt init zsh)"
+
+                For bash (~/.bashrc):
+                  eval "$(wt init bash)"
+
+                For fish (~/.config/fish/config.fish):
+                  wt init fish | source
+              EOS
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/wt --version")
+            end
+          end
+          EOF
+
+          # Replace placeholders with actual values
+          sed -i "s/VERSION_PLACEHOLDER/${FORMULA_VERSION}/g" homebrew-tap/Formula/wt.rb
+          sed -i "s/SHA_DARWIN_AMD64_PLACEHOLDER/${SHA_DARWIN_AMD64}/g" homebrew-tap/Formula/wt.rb
+          sed -i "s/SHA_DARWIN_ARM64_PLACEHOLDER/${SHA_DARWIN_ARM64}/g" homebrew-tap/Formula/wt.rb
+          sed -i "s/SHA_LINUX_AMD64_PLACEHOLDER/${SHA_LINUX_AMD64}/g" homebrew-tap/Formula/wt.rb
+          sed -i "s/SHA_LINUX_ARM64_PLACEHOLDER/${SHA_LINUX_ARM64}/g" homebrew-tap/Formula/wt.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/wt.rb
+          git commit -m "Update wt to ${{ needs.release.outputs.version }}"
+          git push

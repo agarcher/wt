@@ -29,10 +29,10 @@ make build
 make install  # Installs to /usr/local/bin
 ```
 
-### Homebrew (coming soon)
+### Homebrew (macOS/Linux)
 
 ```bash
-brew install agarcher/tap/worktree
+brew install agarcher/tap/wt
 ```
 
 ### Download Binary
