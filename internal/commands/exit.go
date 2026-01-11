@@ -38,7 +38,7 @@ func runExit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a wt-enabled repository (no .wt.yaml found)")
 	}
 
-	// Output the path (shell wrapper will handle the actual cd)
-	cmd.Println(repoRoot)
+	// Output the path to stdout (shell wrapper will handle the actual cd)
+	fmt.Fprintln(cmd.OutOrStdout(), repoRoot)
 	return nil
 }

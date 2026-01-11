@@ -27,6 +27,6 @@ func runRootPath(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a git repository: %w", err)
 	}
 
-	cmd.Println(repoRoot)
+	fmt.Fprintln(cmd.OutOrStdout(), repoRoot)
 	return nil
 }

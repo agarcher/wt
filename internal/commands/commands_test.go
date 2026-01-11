@@ -384,13 +384,96 @@ func TestExitCommand(t *testing.T) {
 	defer func() { _ = os.Chdir(oldDir) }()
 	_ = os.Chdir(repoRoot)
 
-	stdout, _, err := executeCommand("exit")
+	stdout, stderr, err := executeCommand("exit")
 	if err != nil {
 		t.Fatalf("exit command failed: %v", err)
 	}
 
 	if strings.TrimSpace(stdout) != repoRoot {
 		t.Errorf("expected %q, got %q", repoRoot, strings.TrimSpace(stdout))
+	}
+
+	// Verify output goes to stdout, not stderr (critical for shell wrapper)
+	if stderr != "" {
+		t.Errorf("exit command should not write to stderr, got: %q", stderr)
+	}
+}
+
+func TestExitFromWorktree(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "test-exit-wt")
+	if err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+
+	// Change to worktree directory
+	worktreePath := filepath.Join(repoRoot, "worktrees", "test-exit-wt")
+	_ = os.Chdir(worktreePath)
+
+	// Run exit from within worktree
+	stdout, stderr, err := executeCommand("exit")
+	if err != nil {
+		t.Fatalf("exit command failed from worktree: %v", err)
+	}
+
+	// Should return main repo root
+	if strings.TrimSpace(stdout) != repoRoot {
+		t.Errorf("expected main repo %q, got %q", repoRoot, strings.TrimSpace(stdout))
+	}
+
+	// Verify output goes to stdout, not stderr (critical for shell wrapper)
+	if stderr != "" {
+		t.Errorf("exit command should not write to stderr, got: %q", stderr)
+	}
+
+	// Cleanup
+	_ = os.Chdir(repoRoot)
+	_, _, _ = executeCommand("delete", "test-exit-wt", "--force", "--delete-branch")
+}
+
+func TestPathOutputGoesToStdout(t *testing.T) {
+	// This test verifies that commands outputting paths for shell wrappers
+	// write to stdout (not stderr). Cobra's cmd.Println() writes to stderr
+	// by default, which breaks shell wrappers.
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"exit", []string{"exit"}},
+		{"root", []string{"root"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := executeCommand(tt.args...)
+			if err != nil {
+				t.Fatalf("%s command failed: %v", tt.name, err)
+			}
+
+			// Path must be in stdout for shell wrapper to capture
+			if strings.TrimSpace(stdout) == "" {
+				t.Errorf("%s: expected path in stdout, got empty", tt.name)
+			}
+
+			// Stderr should be empty (path should not go there)
+			if stderr != "" {
+				t.Errorf("%s: should not write to stderr, got: %q", tt.name, stderr)
+			}
+		})
 	}
 }
 

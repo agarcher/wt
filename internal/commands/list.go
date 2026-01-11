@@ -110,17 +110,18 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// If no worktrees, display message and return
 	if len(managedWorktrees) == 0 {
-		cmd.Println("No worktrees")
+		fmt.Fprintln(cmd.OutOrStdout(), "No worktrees")
 		return nil
 	}
 
-	// Print header and worktrees
-	cmd.Printf("  %-20s  %s\n", "NAME", "BRANCH")
+	// Print header and worktrees to stdout
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "  %-20s  %s\n", "NAME", "BRANCH")
 	for _, wt := range managedWorktrees {
 		if wt.statusStr != "" {
-			cmd.Printf("%s%-20s  %-30s %s\n", wt.currentMarker, wt.name, wt.branch, wt.statusStr)
+			fmt.Fprintf(out, "%s%-20s  %-30s %s\n", wt.currentMarker, wt.name, wt.branch, wt.statusStr)
 		} else {
-			cmd.Printf("%s%-20s  %s\n", wt.currentMarker, wt.name, wt.branch)
+			fmt.Fprintf(out, "%s%-20s  %s\n", wt.currentMarker, wt.name, wt.branch)
 		}
 	}
 

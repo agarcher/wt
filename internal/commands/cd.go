@@ -52,7 +52,7 @@ func runCd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("worktree %q does not exist", name)
 	}
 
-	// Output the path (shell wrapper will handle the actual cd)
-	cmd.Println(worktreePath)
+	// Output the path to stdout (shell wrapper will handle the actual cd)
+	fmt.Fprintln(cmd.OutOrStdout(), worktreePath)
 	return nil
 }

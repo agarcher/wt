@@ -104,8 +104,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Worktree %q created successfully\n", name)
 
-	// Output the path on the last line for the shell wrapper to use
-	cmd.Println(worktreePath)
+	// Output the path to stdout on the last line for the shell wrapper to use
+	fmt.Fprintln(cmd.OutOrStdout(), worktreePath)
 
 	return nil
 }
