@@ -100,9 +100,9 @@ func runList(cmd *cobra.Command, args []string) error {
 		// Get full worktree status
 		status, _ := git.GetWorktreeStatus(repoRoot, wt.Path, name, wt.Branch, mainBranch, mergedCache)
 
-		// Check if this is the current worktree
+		// Check if this is the current worktree (exact match or inside it)
 		currentMarker := "  "
-		if strings.HasPrefix(cwd, wt.Path) {
+		if cwd == wt.Path || strings.HasPrefix(cwd, wt.Path+string(filepath.Separator)) {
 			currentMarker = "* "
 		}
 
@@ -131,49 +131,6 @@ func runList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// ANSI codes for bold text
-const (
-	bold  = "\033[1m"
-	reset = "\033[0m"
-)
-
-// formatCompactStatus builds the compact status string with arrows
-// State indicators (mutually exclusive): new, in_progress, merged
-// dirty is additive and can appear alongside any state
-func formatCompactStatus(status *git.WorktreeStatus) string {
-	var parts []string
-
-	if status.CommitsAhead > 0 {
-		parts = append(parts, fmt.Sprintf("↑%d", status.CommitsAhead))
-	}
-	if status.CommitsBehind > 0 {
-		parts = append(parts, fmt.Sprintf("↓%d", status.CommitsBehind))
-	}
-
-	// Build status tags (state is mutually exclusive, dirty is additive)
-	var statusTags []string
-
-	// State indicator: new > in_progress > merged (mutually exclusive)
-	if status.IsNew {
-		statusTags = append(statusTags, "new")
-	} else if status.CommitsAhead > 0 && !status.IsMerged {
-		// in_progress: has commits ahead that aren't merged
-		statusTags = append(statusTags, bold+"in_progress"+reset)
-	} else if status.IsMerged && status.CommitsAhead == 0 {
-		statusTags = append(statusTags, "merged")
-	}
-
-	// dirty is additive - can appear with any state
-	if status.HasUncommittedChanges {
-		statusTags = append(statusTags, bold+"dirty"+reset)
-	}
-
-	if len(statusTags) > 0 {
-		parts = append(parts, "["+strings.Join(statusTags, ", ")+"]")
-	}
-
-	return strings.Join(parts, " ")
-}
 
 // printCompactWorktrees prints worktrees in compact table format
 func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo) {
@@ -194,7 +151,7 @@ func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo) {
 	// Print header and rows with dynamic widths
 	_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, "NAME", branchWidth, "BRANCH", "STATUS")
 	for _, wt := range worktrees {
-		statusStr := formatCompactStatus(wt.status)
+		statusStr := FormatCompactStatus(wt.status)
 		_, _ = fmt.Fprintf(out, "%s%-*s  %-*s  %s\n", wt.currentMarker, nameWidth, wt.name, branchWidth, wt.branch, statusStr)
 	}
 }
@@ -239,7 +196,7 @@ func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo) {
 		} else if wt.status.CommitsAhead > 0 && !wt.status.IsMerged {
 			statusLabels = append(statusLabels, bold+"in_progress"+reset)
 		} else if wt.status.IsMerged && wt.status.CommitsAhead == 0 {
-			statusLabels = append(statusLabels, "merged")
+			statusLabels = append(statusLabels, FormatMergedStatus(wt.status.MergedPRs))
 		}
 
 		// dirty is additive

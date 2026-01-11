@@ -114,23 +114,23 @@ func TestFormatCompactStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatCompactStatus(tt.status)
+			got := FormatCompactStatus(tt.status)
 
 			// Strip ANSI codes for content comparison
 			stripped := stripANSI(got)
 			if stripped != tt.want {
-				t.Errorf("formatCompactStatus() content = %q, want %q", stripped, tt.want)
+				t.Errorf("FormatCompactStatus() content = %q, want %q", stripped, tt.want)
 			}
 
 			// Check bold formatting
 			for _, s := range tt.wantBold {
 				if !containsBold(got, s) {
-					t.Errorf("formatCompactStatus() expected %q to be bold", s)
+					t.Errorf("FormatCompactStatus() expected %q to be bold", s)
 				}
 			}
 			for _, s := range tt.wantNoBold {
 				if containsBold(got, s) {
-					t.Errorf("formatCompactStatus() expected %q to NOT be bold", s)
+					t.Errorf("FormatCompactStatus() expected %q to NOT be bold", s)
 				}
 			}
 		})
@@ -171,7 +171,7 @@ func TestFormatCompactStatusInProgressRequiresUnmerged(t *testing.T) {
 				CommitsAhead: tt.commitsAhead,
 				IsMerged:     tt.isMerged,
 			}
-			got := stripANSI(formatCompactStatus(status))
+			got := stripANSI(FormatCompactStatus(status))
 
 			if tt.wantStatus == "" {
 				if strings.Contains(got, "[") {
@@ -219,7 +219,7 @@ func TestDirtyIsAdditive(t *testing.T) {
 
 	for _, tt := range states {
 		t.Run(tt.name+" with dirty", func(t *testing.T) {
-			got := stripANSI(formatCompactStatus(tt.status))
+			got := stripANSI(FormatCompactStatus(tt.status))
 
 			// Should contain both the state and dirty
 			if !strings.Contains(got, tt.name) {

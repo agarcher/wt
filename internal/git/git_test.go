@@ -715,3 +715,159 @@ func TestIsNewStatus(t *testing.T) {
 		t.Error("expected IsNew to be false after committing")
 	}
 }
+
+func TestMatchesBranchName(t *testing.T) {
+	tests := []struct {
+		name       string
+		line       string
+		branchName string
+		want       bool
+	}{
+		// GitHub PR format tests (using --pretty=%s format, no SHA prefix)
+		{
+			name:       "GitHub PR format - simple branch",
+			line:       "Merge pull request #123 from owner/my-feature",
+			branchName: "my-feature",
+			want:       true,
+		},
+		{
+			name:       "GitHub PR format - branch with slashes",
+			line:       "Merge pull request #123 from owner/feature/cleanup",
+			branchName: "feature/cleanup",
+			want:       true,
+		},
+		{
+			name:       "GitHub PR format - partial match should fail",
+			line:       "Merge pull request #123 from owner/cleanup-output",
+			branchName: "cleanup",
+			want:       false,
+		},
+		{
+			name:       "GitHub PR format - similar prefix should fail",
+			line:       "Merge pull request #123 from owner/cleanup-output-2",
+			branchName: "cleanup-output",
+			want:       false,
+		},
+		{
+			name:       "GitHub PR format - with trailing text",
+			line:       "Merge pull request #123 from owner/my-feature into main",
+			branchName: "my-feature",
+			want:       true,
+		},
+		{
+			name:       "GitHub PR format - branch with slashes and trailing text",
+			line:       "Merge pull request #123 from owner/feature/my-branch into develop",
+			branchName: "feature/my-branch",
+			want:       true,
+		},
+
+		// GitHub PR format - no owner prefix
+		{
+			name:       "GitHub PR format - slash branch without owner prefix",
+			line:       "Merge pull request #123 from feature/cleanup",
+			branchName: "feature/cleanup",
+			want:       true,
+		},
+
+		// Git merge format tests
+		{
+			name:       "git merge format - simple branch",
+			line:       "Merge branch 'my-feature' into main",
+			branchName: "my-feature",
+			want:       true,
+		},
+		{
+			name:       "git merge format - branch with slashes",
+			line:       "Merge branch 'feature/cleanup' into main",
+			branchName: "feature/cleanup",
+			want:       true,
+		},
+		{
+			name:       "git merge format - partial match should fail",
+			line:       "Merge branch 'cleanup-output' into main",
+			branchName: "cleanup",
+			want:       false,
+		},
+
+		// Edge cases
+		{
+			name:       "no match - different branch",
+			line:       "Merge pull request #123 from owner/other-branch",
+			branchName: "my-feature",
+			want:       false,
+		},
+		{
+			name:       "no match - branch name in commit message but not in expected format",
+			line:       "Fixed bug in my-feature module",
+			branchName: "my-feature",
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesBranchName(tt.line, tt.branchName)
+			if got != tt.want {
+				t.Errorf("matchesBranchName(%q, %q) = %v, want %v", tt.line, tt.branchName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPRNumberRegex(t *testing.T) {
+	tests := []struct {
+		name    string
+		line    string
+		wantPR  string
+		wantNil bool
+	}{
+		// Tests use --pretty=%s format (no SHA prefix)
+		{
+			name:   "standard GitHub merge commit",
+			line:   "Merge pull request #123 from owner/branch",
+			wantPR: "123",
+		},
+		{
+			name:   "case insensitive - Pull Request",
+			line:   "Merge Pull Request #456 from owner/branch",
+			wantPR: "456",
+		},
+		{
+			name:   "case insensitive - PULL REQUEST",
+			line:   "Merge PULL REQUEST #789 from owner/branch",
+			wantPR: "789",
+		},
+		{
+			name:    "issue number should not match",
+			line:    "Fixes #123 in the codebase",
+			wantNil: true,
+		},
+		{
+			name:    "random hash number should not match",
+			line:    "Updated version to #123",
+			wantNil: true,
+		},
+		{
+			name:    "git merge format without PR",
+			line:    "Merge branch 'feature' into main",
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matches := prNumberRegex.FindStringSubmatch(tt.line)
+			if tt.wantNil {
+				if len(matches) >= 2 {
+					t.Errorf("expected no match for %q, got %v", tt.line, matches[1])
+				}
+			} else {
+				if len(matches) < 2 {
+					t.Errorf("expected match for %q, got none", tt.line)
+				} else if matches[1] != tt.wantPR {
+					t.Errorf("expected PR %q, got %q", tt.wantPR, matches[1])
+				}
+			}
+		})
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -235,7 +236,8 @@ type WorktreeStatus struct {
 	CommitsAhead          int
 	CommitsBehind         int
 	IsMerged              bool
-	IsNew                 bool // true if still on the initial commit (no new commits yet)
+	MergedPRs             []string // PR numbers found in merge commits (e.g., ["#1", "#2"])
+	IsNew                 bool     // true if still on the initial commit (no new commits yet)
 	CreatedAt             time.Time
 }
 
@@ -306,6 +308,84 @@ func IsBranchMerged(repoRoot, branchName, mainBranch string) (bool, error) {
 		return false, err
 	}
 	return merged[branchName], nil
+}
+
+// prNumberRegex matches GitHub-style PR references like "pull request #123"
+var prNumberRegex = regexp.MustCompile(`(?i)pull request #(\d+)`)
+
+// GetMergePRs finds PR numbers from merge commits that reference the given branch.
+// It searches recent merge commits on the main branch for GitHub-style merge commit messages.
+// Returns PR numbers like ["#1", "#2"] or nil if none found.
+func GetMergePRs(repoRoot, branchName, mainBranch string) []string {
+	// Search last 100 merge commits on main branch for mentions of this branch
+	// GitHub merge commit format: "Merge pull request #123 from owner/branch-name"
+	// Use --pretty=%s to get just the subject line without SHA prefix
+	cmd := exec.Command("git", "log", mainBranch, "--merges", "-n", "100", "--pretty=%s")
+	cmd.Dir = repoRoot
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var prs []string
+	seen := make(map[string]bool)
+
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Check if this merge commit mentions our branch exactly
+		// Typical formats:
+		//   "Merge pull request #123 from owner/branch-name"
+		//   "Merge branch 'branch-name' into main"
+		if !matchesBranchName(line, branchName) {
+			continue
+		}
+
+		// Extract PR number using regex for "pull request #123" pattern
+		matches := prNumberRegex.FindStringSubmatch(line)
+		if len(matches) >= 2 {
+			pr := "#" + matches[1]
+			if !seen[pr] {
+				seen[pr] = true
+				prs = append(prs, pr)
+			}
+		}
+	}
+
+	if scanner.Err() != nil {
+		return prs // best-effort on scan error
+	}
+	return prs
+}
+
+// matchesBranchName checks if a merge commit message references the exact branch name.
+// It handles GitHub format "from owner/branch-name" and git format "'branch-name'".
+func matchesBranchName(line, branchName string) bool {
+	// Check for GitHub PR format: "from owner/branch-name" or "from branch-name"
+	// The branch name should be at the end of the line or followed by whitespace
+	fromIdx := strings.Index(line, "from ")
+	if fromIdx != -1 {
+		afterFrom := line[fromIdx+5:]
+		fields := strings.Fields(afterFrom)
+		if len(fields) > 0 {
+			token := fields[0] // "owner/feature/cleanup" or "feature/cleanup"
+			// First try exact match (handles "from feature/cleanup" with no owner)
+			if token == branchName {
+				return true
+			}
+			// If token includes an owner prefix, strip only that first segment
+			// e.g., "owner/feature/cleanup" -> "feature/cleanup"
+			if slashIdx := strings.Index(token, "/"); slashIdx != -1 && token[slashIdx+1:] == branchName {
+				return true
+			}
+		}
+	}
+
+	// Check for git merge format: "Merge branch 'branch-name'"
+	// Look for the branch name in single quotes
+	pattern := "'" + branchName + "'"
+	return strings.Contains(line, pattern)
 }
 
 // SetWorktreeCreatedAt stores the creation timestamp in the worktree's git config
@@ -407,6 +487,11 @@ func GetWorktreeStatus(repoRoot, worktreePath, worktreeName, branchName, mainBra
 	} else {
 		merged, _ := IsBranchMerged(repoRoot, branchName, mainBranch)
 		status.IsMerged = merged
+	}
+
+	// If merged, find associated PR numbers from merge commits
+	if status.IsMerged {
+		status.MergedPRs = GetMergePRs(repoRoot, branchName, mainBranch)
 	}
 
 	// Check if still on initial commit (new worktree with no changes committed)

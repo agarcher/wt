@@ -45,7 +45,7 @@ type cleanupCandidate struct {
 	name   string
 	path   string
 	branch string
-	reason string
+	status *git.WorktreeStatus
 }
 
 func runCleanup(cmd *cobra.Command, args []string) error {
@@ -131,7 +131,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 				name:   name,
 				path:   wt.Path,
 				branch: wt.Branch,
-				reason: fmt.Sprintf("merged into %s", defaultBranch),
+				status: status,
 			})
 		}
 	}
@@ -162,7 +162,8 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Print header and rows with dynamic widths
 	_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, "NAME", branchWidth, "BRANCH", "STATUS")
 	for _, c := range candidates {
-		_, _ = fmt.Fprintf(out, "  %-*s  %-*s  [%s]\n", nameWidth, c.name, branchWidth, c.branch, c.reason)
+		statusStr := FormatCompactStatus(c.status)
+		_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, c.name, branchWidth, c.branch, statusStr)
 	}
 	_, _ = fmt.Fprintln(out)
 

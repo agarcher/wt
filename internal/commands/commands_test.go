@@ -542,13 +542,8 @@ func TestCleanupDryRun(t *testing.T) {
 	defer func() { _ = os.Chdir(oldDir) }()
 	_ = os.Chdir(repoRoot)
 
-	// Get the default branch name
-	cmd := exec.Command("git", "branch", "--show-current")
-	cmd.Dir = repoRoot
-	branchOutput, _ := cmd.Output()
-	defaultBranch := strings.TrimSpace(string(branchOutput))
-
 	// Create a worktree
+	var cmd *exec.Cmd
 	_, _, err := executeCommand("create", "feature-to-merge")
 	if err != nil {
 		t.Fatalf("create command failed: %v", err)
@@ -585,8 +580,8 @@ func TestCleanupDryRun(t *testing.T) {
 	if !strings.Contains(stdout, "feature-to-merge") {
 		t.Errorf("expected feature-to-merge in cleanup candidates, got: %s", stdout)
 	}
-	if !strings.Contains(stdout, "merged into "+defaultBranch) {
-		t.Errorf("expected 'merged into %s' reason, got: %s", defaultBranch, stdout)
+	if !strings.Contains(stdout, "[merged]") {
+		t.Errorf("expected '[merged]' status, got: %s", stdout)
 	}
 	if !strings.Contains(stdout, "Would delete") {
 		t.Errorf("expected 'Would delete' message in dry run, got: %s", stdout)
