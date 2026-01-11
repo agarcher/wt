@@ -41,3 +41,7 @@ go test -v -run TestName ./internal/commands/
 **Version Injection**: Version set at build time via LDFLAGS: `-X github.com/agarcher/wt/internal/commands.Version=$(VERSION)`
 
 **Cobra Output**: `cmd.Println()` writes to stderr. For stdout output (paths, listings), use `fmt.Fprintln(cmd.OutOrStdout(), ...)`.
+
+## Git Workflow
+
+**Never squash or rebase on merge.** Always use `gh pr merge --merge`.
