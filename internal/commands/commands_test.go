@@ -151,6 +151,57 @@ func TestInitCommandInvalidShell(t *testing.T) {
 	}
 }
 
+func TestInitShellIntegration(t *testing.T) {
+	tests := []struct {
+		name       string
+		shell      string
+		shellPath  string
+		checkCmd   string
+		wantOutput string
+	}{
+		{
+			name:       "zsh",
+			shell:      "zsh",
+			shellPath:  "/bin/zsh",
+			checkCmd:   "type wt",
+			wantOutput: "function",
+		},
+		{
+			name:       "bash",
+			shell:      "bash",
+			shellPath:  "/bin/bash",
+			checkCmd:   "type wt",
+			wantOutput: "function",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Skip if shell is not available
+			if _, err := os.Stat(tt.shellPath); os.IsNotExist(err) {
+				t.Skipf("%s not available at %s", tt.shell, tt.shellPath)
+			}
+
+			// Get the init script
+			script, _, err := executeCommand("init", tt.shell)
+			if err != nil {
+				t.Fatalf("failed to get init script: %v", err)
+			}
+
+			// Run the shell with eval'd script and check function is defined
+			cmd := exec.Command(tt.shellPath, "-c", script+"\n"+tt.checkCmd)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("shell command failed: %v\noutput: %s", err, output)
+			}
+
+			if !strings.Contains(string(output), tt.wantOutput) {
+				t.Errorf("expected output to contain %q, got: %s", tt.wantOutput, output)
+			}
+		})
+	}
+}
+
 func TestRootCommand(t *testing.T) {
 	repoRoot, cleanup := setupTestRepo(t)
 	defer cleanup()

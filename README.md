@@ -200,16 +200,37 @@ GOOS=linux GOARCH=amd64 go build -o wt-linux-amd64 ./cmd/wt
 GOOS=linux GOARCH=arm64 go build -o wt-linux-arm64 ./cmd/wt
 ```
 
-### Testing
+### Testing Locally
+
+This repository includes a `.wt.yaml` config, so you can test the tool against this repo itself:
 
 ```bash
-go test -v ./...
+# Build and add to PATH
+make build
+export PATH="$(pwd)/build:$PATH"
+
+# Set up shell integration (overwrites any existing wt function)
+eval "$(./build/wt init zsh)"  # or bash
+
+# Test commands
+wt list
+wt create test-feature
+wt cd test-feature      # now in the worktree
+wt list                 # works from within worktree
+wt exit                 # back to main repo
+wt delete test-feature
+```
+
+### Running Tests
+
+```bash
+make test
 ```
 
 ### Linting
 
 ```bash
-golangci-lint run ./...
+make lint
 ```
 
 ### Releasing

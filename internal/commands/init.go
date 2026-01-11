@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"fmt"
+
 	"github.com/agarcher/wt/internal/shell"
 	"github.com/spf13/cobra"
 )
@@ -33,7 +35,7 @@ Add the following to your shell configuration file:
 		if err != nil {
 			return err
 		}
-		cmd.Print(script)
+		fmt.Fprint(cmd.OutOrStdout(), script)
 		return nil
 	},
 }
