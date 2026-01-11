@@ -262,19 +262,15 @@ make lint
 
 ### Releasing
 
-Releases are automated via GitHub Actions. To create a new release:
+Version is tracked in `VERSION` file. To release:
 
-1. Update the version in your code if needed
-2. Create and push a version tag:
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-3. The release workflow will automatically:
-   - Run tests
-   - Build binaries for all platforms (darwin/linux, amd64/arm64)
-   - Create a GitHub release with the binaries
-   - Generate SHA256 checksums
+```bash
+make release patch "Fix bug in cleanup"
+make release minor "Add new feature"
+make release major "Breaking change"
+```
+
+This bumps `VERSION`, commits, tags, and pushes. GitHub Actions then builds binaries and updates the Homebrew tap.
 
 ## License
 
