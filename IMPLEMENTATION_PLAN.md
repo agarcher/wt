@@ -2,6 +2,16 @@
 
 A cross-platform, brew-installable CLI for managing git worktrees with lifecycle hooks.
 
+## Current Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Core Binary | ✅ Complete | All commands working |
+| Phase 2: Shell Integration | ⚠️ Partial | Functions done, completions pending |
+| Phase 3: Hook System | ✅ Complete | Full lifecycle hooks |
+| Phase 4: Distribution | ⚠️ Partial | CI/CD done, Homebrew tap pending |
+| Phase 5: Documentation | ✅ Complete | README with examples |
+
 ## Overview
 
 **Name options:** `wt`, `worktree`, `gw` (git worktree), `grove` (worktrees are like a grove of branches)
@@ -35,9 +45,9 @@ A cross-platform, brew-installable CLI for managing git worktrees with lifecycle
 
 ---
 
-## Phase 1: Core Binary Foundation
+## Phase 1: Core Binary Foundation ✅
 
-### 1.1 Project Setup
+### 1.1 Project Setup ✅
 
 - Initialize Go module: `github.com/agarcher/wt`
 - Set up directory structure:
@@ -66,9 +76,9 @@ A cross-platform, brew-installable CLI for managing git worktrees with lifecycle
   - `github.com/spf13/viper` - Configuration
   - `gopkg.in/yaml.v3` - YAML parsing
 
-### 1.2 Configuration System
+### 1.2 Configuration System ✅
 
-**Repo-level config (`.wt.yaml`):**
+**Repo-level config (`.wt.yaml`):** ✅ Implemented
 ```yaml
 # .wt.yaml - placed in repository root
 version: 1
@@ -112,7 +122,7 @@ hooks:
 # WT_WORKTREE_DIR  - worktree directory name (e.g., "worktrees")
 ```
 
-**Global config (`~/.config/wt/config.yaml`):**
+**Global config (`~/.config/wt/config.yaml`):** ❌ Not implemented (deferred - repo-level config sufficient)
 ```yaml
 # Global defaults
 defaults:
@@ -122,7 +132,7 @@ defaults:
 shell: /bin/bash
 ```
 
-### 1.3 Core Commands
+### 1.3 Core Commands ✅
 
 **`wt init <shell>`**
 - Outputs shell-specific initialization code
@@ -156,16 +166,17 @@ shell: /bin/bash
 **`wt root`**
 - **Output:** Path to repo root (for scripting)
 
-**`wt cleanup [--dry-run] [--force]`**
-- Finds worktrees eligible for cleanup (merged, old, etc.)
+**`wt cleanup [--dry-run] [--force] [--keep-branch]`** ✅ Implemented
+- Finds worktrees eligible for cleanup (branches merged into main/master)
 - Runs pre_delete hooks for each
-- Removes worktrees
+- Removes worktrees and their branches by default
+- Use `--keep-branch` to preserve branches
 
 ---
 
-## Phase 2: Shell Integration
+## Phase 2: Shell Integration ⚠️
 
-### 2.1 Shell Function Generator
+### 2.1 Shell Function Generator ✅
 
 The `wt init <shell>` command outputs shell functions that:
 
@@ -216,7 +227,7 @@ wt() {
 }
 ```
 
-### 2.2 Shell Completions
+### 2.2 Shell Completions ❌ Not implemented
 
 Generate completions for:
 - zsh (place in `_wt`)
@@ -230,9 +241,9 @@ Completions should:
 
 ---
 
-## Phase 3: Hook System
+## Phase 3: Hook System ✅
 
-### 3.1 Hook Execution Engine
+### 3.1 Hook Execution Engine ✅
 
 **Environment variables passed to all hooks:**
 ```
@@ -249,7 +260,7 @@ WT_WORKTREE_DIR=worktrees
 3. stdout/stderr passed through to user
 4. Exit code determines success/failure
 
-### 3.2 Built-in Hook Scripts (Examples)
+### 3.2 Built-in Hook Scripts (Examples) ✅
 
 Provide example hook scripts users can copy:
 
@@ -278,9 +289,9 @@ fi
 
 ---
 
-## Phase 4: Distribution
+## Phase 4: Distribution ⚠️
 
-### 4.1 Build System
+### 4.1 Build System ✅
 
 **Makefile targets:**
 ```makefile
@@ -292,7 +303,7 @@ install:         # Install to /usr/local/bin
 release:         # Create release artifacts
 ```
 
-### 4.2 Homebrew Formula
+### 4.2 Homebrew Formula ❌ Tap not set up
 
 ```ruby
 class Wt < Formula
@@ -334,7 +345,7 @@ class Wt < Formula
 end
 ```
 
-### 4.3 GitHub Actions CI/CD
+### 4.3 GitHub Actions CI/CD ✅
 
 - Run tests on PRs
 - Build binaries on release tags
@@ -343,9 +354,9 @@ end
 
 ---
 
-## Phase 5: Documentation
+## Phase 5: Documentation ✅
 
-### 5.1 README.md
+### 5.1 README.md ✅
 
 - Quick start guide
 - Installation (brew, manual)
@@ -353,7 +364,7 @@ end
 - Hook examples
 - Comparison with alternatives
 
-### 5.2 Example Configurations
+### 5.2 Example Configurations ⚠️ Partial
 
 Provide starter configs for common use cases:
 - Basic worktree management
@@ -365,17 +376,17 @@ Provide starter configs for common use cases:
 
 ## Implementation Order
 
-1. **Core binary skeleton** - cobra CLI, basic command structure
-2. **Config parsing** - .wt.yaml and global config
-3. **Git operations** - worktree create/delete/list wrappers
-4. **Shell init** - `wt init zsh/bash/fish` with cd handling
-5. **Hook system** - execution engine, environment variables
-6. **List command** - with status info (uncommitted, unpushed)
-7. **Cleanup command** - smart worktree cleanup
-8. **Completions** - shell completions generation
-9. **Build/release** - Makefile, goreleaser
-10. **Homebrew formula** - tap setup, formula
-11. **Documentation** - README, examples
+1. ✅ **Core binary skeleton** - cobra CLI, basic command structure
+2. ✅ **Config parsing** - .wt.yaml (global config deferred)
+3. ✅ **Git operations** - worktree create/delete/list wrappers
+4. ✅ **Shell init** - `wt init zsh/bash/fish` with cd handling
+5. ✅ **Hook system** - execution engine, environment variables
+6. ✅ **List command** - with status info (uncommitted, unpushed)
+7. ✅ **Cleanup command** - smart worktree cleanup
+8. ❌ **Completions** - shell completions generation
+9. ✅ **Build/release** - Makefile, GitHub Actions CI/CD
+10. ❌ **Homebrew formula** - tap setup, formula
+11. ✅ **Documentation** - README, examples
 
 ---
 
@@ -515,5 +526,5 @@ echo "Configured ports with offset $PORT_OFFSET"
 ## Open Questions
 
 1. **Command name:** `wt` is short but common. Alternatives: `grove`, `gw`, `worktree`
-2. **Branch cleanup:** Should `wt delete` also delete the branch by default?
+2. ~~**Branch cleanup:** Should `wt delete` also delete the branch by default?~~ **Resolved:** Yes, both `wt delete` and `wt cleanup` delete the branch by default. Use `--keep-branch` to preserve it.
 3. **Remote tracking:** Should `wt create` automatically push and track remote branch?

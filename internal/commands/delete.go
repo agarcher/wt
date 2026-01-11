@@ -14,20 +14,20 @@ import (
 )
 
 var (
-	deleteForce        bool
-	deleteDeleteBranch bool
+	deleteForce      bool
+	deleteKeepBranch bool
 )
 
 func init() {
 	deleteCmd.Flags().BoolVarP(&deleteForce, "force", "f", false, "Force deletion even with uncommitted changes")
-	deleteCmd.Flags().BoolVarP(&deleteDeleteBranch, "delete-branch", "D", false, "Also delete the associated branch")
+	deleteCmd.Flags().BoolVarP(&deleteKeepBranch, "keep-branch", "k", false, "Keep the associated branch (default: delete it)")
 	rootCmd.AddCommand(deleteCmd)
 }
 
 var deleteCmd = &cobra.Command{
 	Use:   "delete [name]",
 	Short: "Delete a worktree",
-	Long: `Delete a git worktree.
+	Long: `Delete a git worktree and its associated branch.
 
 If no name is provided and you're currently inside a worktree,
 that worktree will be deleted.
@@ -35,7 +35,8 @@ that worktree will be deleted.
 By default, deletion will fail if there are uncommitted changes.
 Use --force to override this check.
 
-Use --delete-branch to also delete the associated git branch.`,
+By default, the associated git branch is also deleted.
+Use --keep-branch to preserve it.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runDelete,
 }
@@ -142,8 +143,8 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to delete worktree: %w", err)
 	}
 
-	// Delete the branch if requested
-	if deleteDeleteBranch && branch != "" {
+	// Delete the branch unless --keep-branch is specified
+	if !deleteKeepBranch && branch != "" {
 		cmd.Printf("Deleting branch %q...\n", branch)
 		if err := git.DeleteBranch(repoRoot, branch, deleteForce); err != nil {
 			cmd.Printf("Warning: failed to delete branch: %v\n", err)
