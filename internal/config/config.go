@@ -114,29 +114,34 @@ func GetMainRepoRoot() (string, error) {
 		return "", err
 	}
 
+	var repoRoot string
+
 	// If .git is a directory, this is the main repo
 	if info.IsDir() {
-		return dir, nil
+		repoRoot = dir
+	} else {
+		// If .git is a file, read it to find the main repo
+		// Format: "gitdir: /path/to/main/.git/worktrees/name"
+		data, err := os.ReadFile(gitPath)
+		if err != nil {
+			return "", err
+		}
+
+		// Parse the gitdir path
+		content := string(data)
+		if len(content) < 8 || content[:8] != "gitdir: " {
+			repoRoot = dir // fallback to current dir
+		} else {
+			gitdir := content[8:]
+			gitdir = filepath.Clean(gitdir[:len(gitdir)-1]) // remove trailing newline
+
+			// Navigate up from .git/worktrees/name to the main repo
+			// gitdir is like: /path/to/main/.git/worktrees/name
+			mainGitDir := filepath.Dir(filepath.Dir(gitdir))
+			repoRoot = filepath.Dir(mainGitDir)
+		}
 	}
 
-	// If .git is a file, read it to find the main repo
-	// Format: "gitdir: /path/to/main/.git/worktrees/name"
-	data, err := os.ReadFile(gitPath)
-	if err != nil {
-		return "", err
-	}
-
-	// Parse the gitdir path
-	content := string(data)
-	if len(content) < 8 || content[:8] != "gitdir: " {
-		return dir, nil // fallback to current dir
-	}
-
-	gitdir := content[8:]
-	gitdir = filepath.Clean(gitdir[:len(gitdir)-1]) // remove trailing newline
-
-	// Navigate up from .git/worktrees/name to the main repo
-	// gitdir is like: /path/to/main/.git/worktrees/name
-	mainGitDir := filepath.Dir(filepath.Dir(gitdir))
-	return filepath.Dir(mainGitDir), nil
+	// Resolve symlinks to ensure path consistency with git worktree output
+	return filepath.EvalSymlinks(repoRoot)
 }

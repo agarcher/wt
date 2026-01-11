@@ -86,6 +86,13 @@ wt delete feature-x
 wt delete
 ```
 
+6. Clean up merged worktrees:
+
+```bash
+wt cleanup              # Remove worktrees with merged branches
+wt cleanup --dry-run    # Preview what would be deleted
+```
+
 ## Configuration
 
 Create a `.wt.yaml` file in your repository root:
@@ -140,7 +147,8 @@ All hooks receive these environment variables:
 | Command | Description |
 |---------|-------------|
 | `wt create <name>` | Create a new worktree |
-| `wt delete [name]` | Delete a worktree (auto-detects if in worktree) |
+| `wt delete [name]` | Delete a worktree and its branch |
+| `wt cleanup` | Remove worktrees with merged branches |
 | `wt list` | List all worktrees |
 | `wt cd <name>` | Change to a worktree directory |
 | `wt exit` | Return to main repository |
@@ -163,9 +171,22 @@ Flags:
 wt delete [name] [flags]
 
 Flags:
-  -f, --force           Force deletion even with uncommitted changes
-  -D, --delete-branch   Also delete the associated branch
+  -f, --force         Force deletion even with uncommitted changes
+  -k, --keep-branch   Keep the associated branch (default: delete it)
 ```
+
+### Cleanup Options
+
+```bash
+wt cleanup [flags]
+
+Flags:
+  -n, --dry-run       Show what would be deleted without deleting
+  -f, --force         Skip confirmation prompts
+  -k, --keep-branch   Keep the associated branches (default: delete them)
+```
+
+The `cleanup` command finds worktrees whose branches have been merged into the default branch (main/master) and removes them. This is useful for cleaning up after completing work on feature branches.
 
 ## Example Hooks
 

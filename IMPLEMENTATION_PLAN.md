@@ -166,10 +166,11 @@ shell: /bin/bash
 **`wt root`**
 - **Output:** Path to repo root (for scripting)
 
-**`wt cleanup [--dry-run] [--force]`** ❌ Not implemented
-- Finds worktrees eligible for cleanup (merged, old, etc.)
+**`wt cleanup [--dry-run] [--force] [--keep-branch]`** ✅ Implemented
+- Finds worktrees eligible for cleanup (branches merged into main/master)
 - Runs pre_delete hooks for each
-- Removes worktrees
+- Removes worktrees and their branches by default
+- Use `--keep-branch` to preserve branches
 
 ---
 
@@ -381,7 +382,7 @@ Provide starter configs for common use cases:
 4. ✅ **Shell init** - `wt init zsh/bash/fish` with cd handling
 5. ✅ **Hook system** - execution engine, environment variables
 6. ✅ **List command** - with status info (uncommitted, unpushed)
-7. ❌ **Cleanup command** - smart worktree cleanup
+7. ✅ **Cleanup command** - smart worktree cleanup
 8. ❌ **Completions** - shell completions generation
 9. ✅ **Build/release** - Makefile, GitHub Actions CI/CD
 10. ❌ **Homebrew formula** - tap setup, formula

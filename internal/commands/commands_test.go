@@ -13,7 +13,10 @@ import (
 func resetFlags() {
 	createBranch = ""
 	deleteForce = false
-	deleteDeleteBranch = false
+	deleteKeepBranch = false
+	cleanupDryRun = false
+	cleanupForce = false
+	cleanupKeepBranch = false
 }
 
 // setupTestRepo creates a temporary git repository with .wt.yaml for testing
@@ -87,6 +90,11 @@ branch_pattern: "{name}"
 func executeCommand(args ...string) (string, string, error) {
 	// Reset flags to default values to avoid state pollution between tests
 	resetFlags()
+
+	// Reset help flag on all subcommands (gets set by --help tests)
+	for _, cmd := range rootCmd.Commands() {
+		cmd.Flags().Set("help", "false")
+	}
 
 	// Reset the command for fresh execution
 	rootCmd.SetArgs(args)
@@ -282,8 +290,8 @@ func TestCreateAndDeleteWorkflow(t *testing.T) {
 		t.Errorf("cd output expected %q, got %q", expectedPath, strings.TrimSpace(stdout))
 	}
 
-	// Delete the worktree
-	_, _, err = executeCommand("delete", "test-feature", "--force", "--delete-branch")
+	// Delete the worktree (branch deleted by default)
+	_, _, err = executeCommand("delete", "test-feature", "--force")
 	if err != nil {
 		t.Fatalf("delete command failed: %v", err)
 	}
@@ -345,7 +353,7 @@ func TestCreateDuplicateBranchFails(t *testing.T) {
 	}
 
 	// Cleanup
-	_, _, _ = executeCommand("delete", "feature-x", "--force", "--delete-branch")
+	_, _, _ = executeCommand("delete", "feature-x", "--force")
 }
 
 func TestDeleteNonexistent(t *testing.T) {
@@ -435,7 +443,7 @@ func TestExitFromWorktree(t *testing.T) {
 
 	// Cleanup
 	_ = os.Chdir(repoRoot)
-	_, _, _ = executeCommand("delete", "test-exit-wt", "--force", "--delete-branch")
+	_, _, _ = executeCommand("delete", "test-exit-wt", "--force")
 }
 
 func TestPathOutputGoesToStdout(t *testing.T) {
@@ -493,7 +501,7 @@ func TestHelpCommand(t *testing.T) {
 }
 
 func TestSubcommandHelp(t *testing.T) {
-	commands := []string{"create", "delete", "list", "cd", "exit", "init"}
+	commands := []string{"create", "delete", "list", "cd", "exit", "init", "cleanup"}
 
 	for _, cmd := range commands {
 		t.Run(cmd, func(t *testing.T) {
@@ -506,4 +514,283 @@ func TestSubcommandHelp(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCleanupNoWorktrees(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	stdout, stderr, err := executeCommand("cleanup")
+	if err != nil {
+		t.Fatalf("cleanup command failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	if !strings.Contains(stdout, "No worktrees eligible for cleanup") {
+		t.Errorf("expected no eligible worktrees message, got: %s", stdout)
+	}
+}
+
+func TestCleanupDryRun(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Get the default branch name
+	cmd := exec.Command("git", "branch", "--show-current")
+	cmd.Dir = repoRoot
+	branchOutput, _ := cmd.Output()
+	defaultBranch := strings.TrimSpace(string(branchOutput))
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "feature-to-merge")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	// Make a commit in the worktree so it's not considered "new"
+	worktreePath := filepath.Join(repoRoot, "worktrees", "feature-to-merge")
+	testFile := filepath.Join(worktreePath, "feature.txt")
+	if err := os.WriteFile(testFile, []byte("feature content"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = worktreePath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Add feature")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit in worktree: %v", err)
+	}
+
+	// Switch back to main repo and merge the branch (making it eligible for cleanup)
+	cmd = exec.Command("git", "merge", "feature-to-merge")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to merge branch: %v", err)
+	}
+
+	// Run cleanup with --dry-run
+	stdout, _, err := executeCommand("cleanup", "--dry-run")
+	if err != nil {
+		t.Fatalf("cleanup --dry-run failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "feature-to-merge") {
+		t.Errorf("expected feature-to-merge in cleanup candidates, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "merged into "+defaultBranch) {
+		t.Errorf("expected 'merged into %s' reason, got: %s", defaultBranch, stdout)
+	}
+	if !strings.Contains(stdout, "Would delete") {
+		t.Errorf("expected 'Would delete' message in dry run, got: %s", stdout)
+	}
+
+	// Verify worktree still exists (dry run shouldn't delete)
+	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
+		t.Error("worktree was deleted during dry run")
+	}
+
+	// Cleanup
+	_, _, _ = executeCommand("delete", "feature-to-merge", "--force")
+}
+
+func TestCleanupMergedWorktree(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "merged-feature")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	// Make a commit in the worktree so it's not considered "new"
+	worktreePath := filepath.Join(repoRoot, "worktrees", "merged-feature")
+	testFile := filepath.Join(worktreePath, "feature.txt")
+	if err := os.WriteFile(testFile, []byte("feature content"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = worktreePath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Add feature")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit in worktree: %v", err)
+	}
+
+	// Switch back to main repo and merge the branch
+	cmd = exec.Command("git", "merge", "merged-feature")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to merge branch: %v", err)
+	}
+
+	// Run cleanup with --force (skip confirmation)
+	stdout, _, err := executeCommand("cleanup", "--force")
+	if err != nil {
+		t.Fatalf("cleanup --force failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "Cleaned up 1 worktree") {
+		t.Errorf("expected cleanup success message, got: %s", stdout)
+	}
+
+	// Verify worktree is deleted
+	if _, err := os.Stat(worktreePath); !os.IsNotExist(err) {
+		t.Error("worktree still exists after cleanup")
+	}
+}
+
+func TestCleanupUnmergedWorktree(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "unmerged-feature")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	// Make a commit in the worktree so it's NOT merged into main
+	worktreePath := filepath.Join(repoRoot, "worktrees", "unmerged-feature")
+	testFile := filepath.Join(worktreePath, "new-file.txt")
+	if err := os.WriteFile(testFile, []byte("new content"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = worktreePath
+	_ = cmd.Run()
+
+	cmd = exec.Command("git", "commit", "-m", "Add new file")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Run cleanup
+	stdout, _, err := executeCommand("cleanup")
+	if err != nil {
+		t.Fatalf("cleanup command failed: %v", err)
+	}
+
+	// Should not find the unmerged worktree as eligible
+	if strings.Contains(stdout, "unmerged-feature") {
+		t.Errorf("unmerged worktree should not be in cleanup candidates, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "No worktrees eligible for cleanup") {
+		t.Errorf("expected no eligible message, got: %s", stdout)
+	}
+
+	// Cleanup
+	_, _, _ = executeCommand("delete", "unmerged-feature", "--force")
+}
+
+func TestCleanupSkipsNewWorktree(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree but don't make any commits
+	// This worktree is "new" - still on its initial commit
+	_, _, err := executeCommand("create", "new-feature")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	// Run cleanup - should skip the new worktree even though it's technically "merged"
+	// (same commit as main)
+	stdout, _, err := executeCommand("cleanup")
+	if err != nil {
+		t.Fatalf("cleanup command failed: %v", err)
+	}
+
+	if strings.Contains(stdout, "new-feature") {
+		t.Errorf("new worktree should not be in cleanup candidates, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "No worktrees eligible for cleanup") {
+		t.Errorf("expected no eligible message, got: %s", stdout)
+	}
+
+	// Cleanup
+	_, _, _ = executeCommand("delete", "new-feature", "--force")
+}
+
+func TestCleanupSkipsUncommittedChanges(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree and make a commit
+	_, _, err := executeCommand("create", "dirty-feature")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	worktreePath := filepath.Join(repoRoot, "worktrees", "dirty-feature")
+
+	// Make a commit so it's not "new"
+	testFile := filepath.Join(worktreePath, "feature.txt")
+	if err := os.WriteFile(testFile, []byte("feature"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	cmd := exec.Command("git", "add", ".")
+	cmd.Dir = worktreePath
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Add feature")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Merge into main so it would be eligible for cleanup
+	cmd = exec.Command("git", "merge", "dirty-feature")
+	cmd.Dir = repoRoot
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to merge: %v", err)
+	}
+
+	// Now add uncommitted changes to the worktree
+	dirtyFile := filepath.Join(worktreePath, "uncommitted.txt")
+	if err := os.WriteFile(dirtyFile, []byte("uncommitted work"), 0644); err != nil {
+		t.Fatalf("failed to write dirty file: %v", err)
+	}
+
+	// Run cleanup - should skip due to uncommitted changes
+	stdout, _, err := executeCommand("cleanup")
+	if err != nil {
+		t.Fatalf("cleanup command failed: %v", err)
+	}
+
+	if strings.Contains(stdout, "dirty-feature") {
+		t.Errorf("worktree with uncommitted changes should not be in cleanup candidates, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "No worktrees eligible for cleanup") {
+		t.Errorf("expected no eligible message, got: %s", stdout)
+	}
+
+	// Cleanup
+	_, _, _ = executeCommand("delete", "dirty-feature", "--force")
 }
