@@ -1,7 +1,7 @@
-.PHONY: build build-all install clean test lint
+.PHONY: build build-all install clean test lint release
 
-# Version information
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+# Version information - prefer VERSION file, fall back to git describe
+VERSION ?= $(shell cat VERSION 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X github.com/agarcher/wt/internal/commands.Version=$(VERSION)"
 
 # Binary name
@@ -57,6 +57,17 @@ tidy:
 run: build
 	./$(BUILD_DIR)/$(BINARY)
 
+# Create a release (bump version, tag, push)
+# Usage: make release patch "Fix bug"
+#        make release minor "Add feature"
+#        make release major "Breaking change"
+release:
+	@./scripts/release.sh $(filter-out $@,$(MAKECMDGOALS))
+
+# Catch-all to allow positional arguments to release target
+%:
+	@:
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -67,4 +78,5 @@ help:
 	@echo "  test        - Run tests"
 	@echo "  lint        - Run linters"
 	@echo "  tidy        - Run go mod tidy"
+	@echo "  release     - Create a release: make release <major|minor|patch> \"notes\""
 	@echo "  help        - Show this help"

@@ -92,6 +92,9 @@ jobs:
     if: ${{ !contains(github.ref, '-rc') && !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
 
     steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
       - name: Set up SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -100,7 +103,7 @@ jobs:
       - name: Clone tap repository
         run: git clone git@github.com:agarcher/homebrew-tap.git homebrew-tap
 
-      - name: Update formula
+      - name: Generate and update formula
         env:
           VERSION: ${{ needs.release.outputs.version }}
           SHA_DARWIN_AMD64: ${{ needs.release.outputs.sha_darwin_amd64 }}
@@ -109,78 +112,8 @@ jobs:
           SHA_LINUX_ARM64: ${{ needs.release.outputs.sha_linux_arm64 }}
         run: |
           # Strip the 'v' prefix from version for formula
-          FORMULA_VERSION="${VERSION#v}"
-
-          cat > homebrew-tap/Formula/wt.rb << 'EOF'
-          # typed: false
-          # frozen_string_literal: true
-
-          class Wt < Formula
-            desc "Git worktree manager with lifecycle hooks"
-            homepage "https://github.com/agarcher/wt"
-            version "VERSION_PLACEHOLDER"
-            license "MIT"
-
-            on_macos do
-              on_intel do
-                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-darwin-amd64.tar.gz"
-                sha256 "SHA_DARWIN_AMD64_PLACEHOLDER"
-              end
-
-              on_arm do
-                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-darwin-arm64.tar.gz"
-                sha256 "SHA_DARWIN_ARM64_PLACEHOLDER"
-              end
-            end
-
-            on_linux do
-              on_intel do
-                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-linux-amd64.tar.gz"
-                sha256 "SHA_LINUX_AMD64_PLACEHOLDER"
-              end
-
-              on_arm do
-                url "https://github.com/agarcher/wt/releases/download/vVERSION_PLACEHOLDER/wt-linux-arm64.tar.gz"
-                sha256 "SHA_LINUX_ARM64_PLACEHOLDER"
-              end
-            end
-
-            def install
-              # Determine binary name based on OS and architecture
-              binary_name = "wt-#{OS.kernel_name.downcase}-#{Hardware::CPU.arch == :arm64 ? "arm64" : "amd64"}"
-              bin.install binary_name => "wt"
-
-              # Install shell completions
-              generate_completions_from_executable(bin/"wt", "completion")
-            end
-
-            def caveats
-              <<~EOS
-                To enable wt shell integration, add the following to your shell config:
-
-                For zsh (~/.zshrc):
-                  eval "$(wt init zsh)"
-
-                For bash (~/.bashrc):
-                  eval "$(wt init bash)"
-
-                For fish (~/.config/fish/config.fish):
-                  wt init fish | source
-              EOS
-            end
-
-            test do
-              assert_match version.to_s, shell_output("#{bin}/wt --version")
-            end
-          end
-          EOF
-
-          # Replace placeholders with actual values
-          sed -i "s/VERSION_PLACEHOLDER/${FORMULA_VERSION}/g" homebrew-tap/Formula/wt.rb
-          sed -i "s/SHA_DARWIN_AMD64_PLACEHOLDER/${SHA_DARWIN_AMD64}/g" homebrew-tap/Formula/wt.rb
-          sed -i "s/SHA_DARWIN_ARM64_PLACEHOLDER/${SHA_DARWIN_ARM64}/g" homebrew-tap/Formula/wt.rb
-          sed -i "s/SHA_LINUX_AMD64_PLACEHOLDER/${SHA_LINUX_AMD64}/g" homebrew-tap/Formula/wt.rb
-          sed -i "s/SHA_LINUX_ARM64_PLACEHOLDER/${SHA_LINUX_ARM64}/g" homebrew-tap/Formula/wt.rb
+          export VERSION="${VERSION#v}"
+          ./scripts/generate-formula.sh > homebrew-tap/Formula/wt.rb
 
       - name: Commit and push
         run: |
