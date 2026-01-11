@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -309,6 +310,9 @@ func IsBranchMerged(repoRoot, branchName, mainBranch string) (bool, error) {
 	return merged[branchName], nil
 }
 
+// prNumberRegex matches GitHub-style PR references like "pull request #123"
+var prNumberRegex = regexp.MustCompile(`(?i)pull request #(\d+)`)
+
 // GetMergePRs finds PR numbers from merge commits that reference the given branch.
 // It searches recent merge commits on the main branch for GitHub-style merge commit messages.
 // Returns PR numbers like ["#1", "#2"] or nil if none found.
@@ -337,22 +341,13 @@ func GetMergePRs(repoRoot, branchName, mainBranch string) []string {
 			continue
 		}
 
-		// Extract PR number if present (GitHub format)
-		// Look for "#" followed by digits
-		for i := 0; i < len(line); i++ {
-			if line[i] == '#' && i+1 < len(line) {
-				// Extract digits following #
-				j := i + 1
-				for j < len(line) && line[j] >= '0' && line[j] <= '9' {
-					j++
-				}
-				if j > i+1 {
-					pr := line[i:j]
-					if !seen[pr] {
-						seen[pr] = true
-						prs = append(prs, pr)
-					}
-				}
+		// Extract PR number using regex for "pull request #123" pattern
+		matches := prNumberRegex.FindStringSubmatch(line)
+		if len(matches) >= 2 {
+			pr := "#" + matches[1]
+			if !seen[pr] {
+				seen[pr] = true
+				prs = append(prs, pr)
 			}
 		}
 	}
@@ -372,9 +367,10 @@ func matchesBranchName(line, branchName string) bool {
 		if slashIdx := strings.LastIndex(afterFrom, "/"); slashIdx != -1 {
 			afterFrom = afterFrom[slashIdx+1:]
 		}
-		// Check if it matches exactly (possibly with trailing whitespace)
-		afterFrom = strings.TrimSpace(afterFrom)
-		if afterFrom == branchName {
+		// Extract just the first whitespace-delimited token (branch name)
+		// This handles cases like "branch-name into main"
+		fields := strings.Fields(afterFrom)
+		if len(fields) > 0 && fields[0] == branchName {
 			return true
 		}
 	}
