@@ -212,65 +212,9 @@ Managing multiple parallel development streams (especially when working with LLM
 
 `wt` provides all of this with a simple, consistent interface.
 
-## Development
+## Contributing
 
-### Building
-
-```bash
-# Build for current platform
-go build -o wt ./cmd/wt
-
-# Build for all platforms
-GOOS=darwin GOARCH=amd64 go build -o wt-darwin-amd64 ./cmd/wt
-GOOS=darwin GOARCH=arm64 go build -o wt-darwin-arm64 ./cmd/wt
-GOOS=linux GOARCH=amd64 go build -o wt-linux-amd64 ./cmd/wt
-GOOS=linux GOARCH=arm64 go build -o wt-linux-arm64 ./cmd/wt
-```
-
-### Testing Locally
-
-This repository includes a `.wt.yaml` config, so you can test the tool against this repo itself:
-
-```bash
-# Build and add to PATH
-make build
-export PATH="$(pwd)/build:$PATH"
-
-# Set up shell integration (overwrites any existing wt function)
-eval "$(./build/wt init zsh)"  # or bash
-
-# Test commands
-wt list
-wt create test-feature
-wt cd test-feature      # now in the worktree
-wt list                 # works from within worktree
-wt exit                 # back to main repo
-wt delete test-feature
-```
-
-### Running Tests
-
-```bash
-make test
-```
-
-### Linting
-
-```bash
-make lint
-```
-
-### Releasing
-
-Version is tracked in `VERSION` file. To release:
-
-```bash
-make release patch "Fix bug in cleanup"
-make release minor "Add new feature"
-make release major "Breaking change"
-```
-
-This bumps `VERSION`, commits, tags, and pushes. GitHub Actions then builds binaries and updates the Homebrew tap.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, building, and release instructions.
 
 ## License
 
