@@ -13,8 +13,8 @@ Thanks for your interest in contributing to `wt`!
 ### Building
 
 ```bash
-# Clone the repository
-git clone https://github.com/agarcher/wt.git
+# Fork and clone the repository
+git clone https://github.com/YOUR_USERNAME/wt.git
 cd wt
 
 # Build for current platform
@@ -42,7 +42,6 @@ eval "$(./build/wt init zsh)"  # or bash/fish
 # Test commands
 wt list
 wt create test-feature
-wt cd test-feature
 wt exit
 wt delete test-feature
 ```
@@ -53,24 +52,5 @@ For details on the codebase structure and design patterns, see [docs/ARCHITECTUR
 
 ## Git Workflow
 
-- **Never squash or rebase on merge.** Always use `gh pr merge --merge`.
-- Create feature branches for your work
+- Fork the repository and submit PRs from your fork
 - Write clear commit messages
-
-## Releasing
-
-Version is tracked in the `VERSION` file. To release:
-
-```bash
-make release patch "Fix bug in cleanup"
-make release minor "Add new feature"
-make release major "Breaking change"
-```
-
-This bumps `VERSION`, commits, tags, and pushes. GitHub Actions then builds binaries and updates the Homebrew tap.
-
-## Code Style
-
-- Run `make lint` before submitting PRs
-- Follow existing code patterns in the codebase
-- Keep changes focused and minimal
