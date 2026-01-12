@@ -128,12 +128,9 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Warn if user is in the worktree being deleted
+	// Check if user is in the worktree being deleted
 	cwd, _ := os.Getwd()
-	if strings.HasPrefix(cwd, worktreePath) {
-		cmd.Println("Warning: You are currently in this worktree.")
-		cmd.Println("After deletion, run 'wt exit' or 'cd' to another directory.")
-	}
+	inDeletedWorktree := strings.HasPrefix(cwd, worktreePath)
 
 	// Run pre-delete hooks
 	if err := hooks.RunPreDelete(cfg, env); err != nil {
@@ -163,6 +160,12 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Worktree %q deleted successfully\n", name)
+
+	// If user was in the deleted worktree, output repo root for shell wrapper to cd
+	if inDeletedWorktree {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), repoRoot)
+	}
+
 	return nil
 }
 

@@ -159,7 +159,7 @@ wt() {
 
   # Commands that need cd handling
   case "$1" in
-    create)
+    create|delete|cleanup)
       local output
       output=$(command wt "$@" 2>&1)
       local exit_code=$?
@@ -167,12 +167,13 @@ wt() {
       if [[ $exit_code -eq 0 ]]; then
         # Print all but last line
         echo "$output" | sed '$d'
-        # cd to path on last line
+        # cd to path on last line if it's a directory
         local target=$(echo "$output" | tail -1)
         if [[ -d "$target" ]]; then
           cd "$target"
         else
-          echo "$output"
+          # Last line wasn't a directory, print it too
+          echo "$target"
         fi
       else
         echo "$output"
@@ -347,7 +348,7 @@ wt() {
   fi
 
   case "$1" in
-    create)
+    create|delete|cleanup)
       local output
       output=$(command wt "$@" 2>&1)
       local exit_code=$?
@@ -358,7 +359,7 @@ wt() {
         if [[ -d "$target" ]]; then
           cd "$target"
         else
-          echo "$output"
+          echo "$target"
         fi
       else
         echo "$output"
@@ -497,7 +498,7 @@ function wt
   end
 
   switch $argv[1]
-    case create
+    case create delete cleanup
       set -l output (command wt $argv 2>&1)
       set -l exit_code $status
 
@@ -507,7 +508,7 @@ function wt
         if test -d "$target"
           cd "$target"
         else
-          echo "$output"
+          echo "$target"
         end
       else
         echo "$output"

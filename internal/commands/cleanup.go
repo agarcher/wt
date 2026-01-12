@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -189,6 +190,16 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Check if user is in any of the worktrees being deleted
+	cwd, _ := os.Getwd()
+	inDeletedWorktree := false
+	for _, c := range candidates {
+		if strings.HasPrefix(cwd, c.path) {
+			inDeletedWorktree = true
+			break
+		}
+	}
+
 	// Delete each candidate
 	var deleted int
 	for _, c := range candidates {
@@ -239,5 +250,11 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Cleaned up %d worktree(s)\n", deleted)
+
+	// If user was in a deleted worktree, output repo root for shell wrapper to cd
+	if inDeletedWorktree && deleted > 0 {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), repoRoot)
+	}
+
 	return nil
 }
