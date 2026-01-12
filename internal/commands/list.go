@@ -159,7 +159,7 @@ func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo) {
 		statusStr := FormatCompactStatus(wt.status)
 		indexStr := "-"
 		if wt.index > 0 {
-			indexStr = fmt.Sprintf("#%d", wt.index)
+			indexStr = fmt.Sprintf("%d", wt.index)
 		}
 		_, _ = fmt.Fprintf(out, "%s%-*s  %5s  %-*s  %s\n", wt.currentMarker, nameWidth, wt.name, indexStr, branchWidth, wt.branch, statusStr)
 	}

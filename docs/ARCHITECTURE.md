@@ -70,6 +70,15 @@ All hooks receive standardized environment variables:
 - `WT_BRANCH` - git branch name
 - `WT_REPO_ROOT` - main repository root
 - `WT_WORKTREE_DIR` - worktree directory name (e.g., "worktrees")
+- `WT_INDEX` - stable numeric index (1+), useful for port offsets
+
+### Worktree Index
+
+Each worktree receives a stable numeric index starting at 1 (index 0 is reserved for the main repo). The index system:
+- **Storage**: Index is stored in `.git/worktrees/<name>/wt-index` (automatically cleaned by git)
+- **Allocation**: Finds lowest unused index on creation
+- **Reuse**: Deleted worktree indexes become available for new worktrees
+- **Optional limit**: Configure `index.max` in `.wt.yaml` to cap the index range
 
 ### Version Injection
 

@@ -385,12 +385,29 @@ func TestListShowsIndex(t *testing.T) {
 		t.Fatalf("list command failed: %v", err)
 	}
 
-	// Should show INDEX header and #1 for the worktree
+	// Should show INDEX header and index 1 for the worktree
 	if !strings.Contains(stdout, "INDEX") {
 		t.Error("list output should contain INDEX header")
 	}
-	if !strings.Contains(stdout, "#1") {
-		t.Errorf("list output should show #1 for the worktree, got: %s", stdout)
+	// Check that the index column contains "1" (without # prefix)
+	// The output format is: "  name  index  branch  status"
+	lines := strings.Split(stdout, "\n")
+	foundIndex := false
+	for _, line := range lines {
+		if strings.Contains(line, "indexed-wt") {
+			// Parse the line to find the index value
+			fields := strings.Fields(line)
+			for _, field := range fields {
+				if field == "1" {
+					foundIndex = true
+					break
+				}
+			}
+			break
+		}
+	}
+	if !foundIndex {
+		t.Errorf("list output should show index 1 for the worktree, got: %s", stdout)
 	}
 
 	// Cleanup

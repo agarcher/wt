@@ -36,7 +36,9 @@ go test -v -run TestName ./internal/commands/
 
 **Repository Detection**: Determines if running in main repo vs worktree by checking if `.git` is a file (worktree) or directory (main repo).
 
-**Hook Environment**: Hooks receive standardized env vars: `WT_NAME`, `WT_PATH`, `WT_BRANCH`, `WT_REPO_ROOT`, `WT_WORKTREE_DIR`.
+**Hook Environment**: Hooks receive standardized env vars: `WT_NAME`, `WT_PATH`, `WT_BRANCH`, `WT_REPO_ROOT`, `WT_WORKTREE_DIR`, `WT_INDEX`.
+
+**Worktree Index**: Each worktree gets a stable numeric index (1+) stored in `.git/worktrees/<name>/wt-index`. Useful for port offsets and resource isolation.
 
 **Version Injection**: Version set at build time via LDFLAGS: `-X github.com/agarcher/wt/internal/commands.Version=$(VERSION)`
 

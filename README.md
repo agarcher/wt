@@ -147,6 +147,27 @@ All hooks receive these environment variables:
 | `WT_BRANCH` | Git branch name |
 | `WT_REPO_ROOT` | Main repository root path |
 | `WT_WORKTREE_DIR` | Worktree directory name |
+| `WT_INDEX` | Stable numeric index (1+), useful for port offsets |
+
+### Worktree Index
+
+Each worktree is assigned a stable numeric index starting at 1. When a worktree is deleted, its index becomes available for reuse by the next created worktree. This is useful for:
+
+- **Port allocation**: Assign unique ports per worktree (e.g., `VITE_PORT=$((5173 + WT_INDEX * 10))`)
+- **Resource isolation**: Unique database names, container names, etc.
+- **Parallel testing**: Run multiple worktree environments simultaneously without conflicts
+
+The index is stored in `.git/worktrees/<name>/wt-index` and is automatically cleaned up when the worktree is removed.
+
+You can optionally limit the maximum index value:
+
+```yaml
+# .wt.yaml
+version: 1
+worktree_dir: worktrees
+index:
+  max: 20  # Optional: limit indexes to 1-20
+```
 
 ## Commands
 
@@ -200,6 +221,7 @@ See the `examples/hooks/` directory for example hook scripts:
 
 - `copy-env.sh` - Copy `.env` files from main repo to worktree
 - `pre-delete-check.sh` - Warn about uncommitted changes before deletion
+- `setup-ports.sh` - Configure unique ports based on `WT_INDEX`
 
 ## Why wt?
 
