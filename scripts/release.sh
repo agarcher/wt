@@ -112,13 +112,17 @@ echo "New version: $NEW_VERSION"
 # Update VERSION file
 echo "$NEW_VERSION" > "$VERSION_FILE"
 
+# Write release notes to file for workflow to use
+RELEASE_NOTES_FILE="${REPO_ROOT}/RELEASE_NOTES.md"
+echo "$RELEASE_NOTES" > "$RELEASE_NOTES_FILE"
+
 # Commit, tag, and push
 cd "$REPO_ROOT"
 
-git add VERSION
+git add VERSION RELEASE_NOTES.md
 git commit -m "Bump version to ${NEW_VERSION}"
 
-git tag -a "v${NEW_VERSION}" -m "${RELEASE_NOTES}"
+git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
 
 echo ""
 echo "Pushing to origin main..."
