@@ -4,11 +4,12 @@ This example demonstrates using `wt` hooks and `WT_INDEX` to automatically confi
 
 ## How It Works
 
-When you create a worktree with `wt create <name>`, the post_create hook:
+When you create a worktree with `wt create <name>`, the post_create hooks:
 
-1. Reads `WT_INDEX` (a stable numeric identifier assigned to each worktree)
-2. Calculates a unique port: `5173 + (WT_INDEX * 10)`
-3. Writes the port to `.env.local` in the worktree
+1. Copy `node_modules` from the main repo (no need to run `npm install`)
+2. Read `WT_INDEX` (a stable numeric identifier assigned to each worktree)
+3. Calculate a unique port: `5173 + (WT_INDEX * 10)`
+4. Write the port to `.env.local` in the worktree
 
 Vite automatically loads `.env.local` and uses the configured port.
 
@@ -46,12 +47,10 @@ Vite automatically loads `.env.local` and uses the configured port.
 
    # In feature-a worktree (port 5183)
    cd worktrees/feature-a
-   npm install
    npm run dev
 
    # In feature-b worktree (port 5193)
    cd worktrees/feature-b
-   npm install
    npm run dev
    ```
 
@@ -59,7 +58,8 @@ Each worktree runs on its own port, allowing parallel development and testing.
 
 ## Files
 
-- `.wt.yaml` - Configures the post_create hook
+- `.wt.yaml` - Configures the post_create hooks
+- `scripts/copy-node-modules.sh` - Hook that copies node_modules to the worktree
 - `scripts/setup-ports.sh` - Hook that generates `.env.local` with the unique port
 - `vite.config.js` - Reads `VITE_PORT` from environment
 - `src/main.js` - Displays current port on the page
