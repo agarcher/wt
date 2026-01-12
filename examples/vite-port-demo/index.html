@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WT Port Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      .info {
+        background: #f5f5f5;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+      }
+      .port {
+        font-size: 2em;
+        font-weight: bold;
+        color: #646cff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Worktree Port Demo</h1>
+    <div class="info">
+      <p>Server running on port: <span id="port" class="port">--</span></p>
+      <p id="context"></p>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
