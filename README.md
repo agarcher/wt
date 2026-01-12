@@ -3,7 +3,7 @@
 [![CI](https://github.com/agarcher/wt/actions/workflows/ci.yml/badge.svg)](https://github.com/agarcher/wt/actions/workflows/ci.yml)
 [![Release](https://github.com/agarcher/wt/actions/workflows/release.yml/badge.svg)](https://github.com/agarcher/wt/actions/workflows/release.yml)
 
-A cross-platform CLI tool for managing git worktrees with lifecycle hooks.
+A CLI for managing local git worktrees with lifecycle hooks. Create isolated, fully testable environments—ideal for running multiple LLM coding agents in parallel. See the [Vite port demo](examples/vite-port-demo/) for a working example.
 
 ## Features
 
@@ -225,14 +225,15 @@ See the `examples/hooks/` directory for example hook scripts:
 
 ## Why wt?
 
-Managing multiple parallel development streams (especially when working with LLMs) often requires:
+LLM coding agents work best with full access to build, test, and run your project. But running multiple agents on the same codebase creates conflicts—port collisions, shared state, and dependency issues.
 
-1. **Isolated environments**: Each worktree has its own working directory
-2. **Quick context switching**: Jump between features without stashing
-3. **Custom setup**: Run project-specific setup scripts automatically
-4. **Clean teardown**: Ensure nothing is lost before deletion
+`wt` solves this with lifecycle hooks that automatically configure each worktree:
 
-`wt` provides all of this with a simple, consistent interface.
+- **Unique ports**: Assign dev server ports based on `WT_INDEX` (e.g., agent 1 gets port 5183, agent 2 gets 5193)
+- **Copied dependencies**: Clone `node_modules` so each worktree is immediately runnable
+- **Custom setup**: Run any project-specific initialization scripts
+
+Each agent gets a fully isolated environment where it can build, test, and iterate without affecting others.
 
 ## Contributing
 
