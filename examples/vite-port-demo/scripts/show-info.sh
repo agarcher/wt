@@ -10,4 +10,4 @@ if [ -z "$WT_INDEX" ]; then
 fi
 
 PORT=$((5173 + WT_INDEX * 10))
-echo "URL: https://localhost:$PORT"
+echo "URL: http://localhost:$PORT"

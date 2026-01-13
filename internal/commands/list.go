@@ -116,7 +116,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Print based on verbose flag
 	if verboseFlag {
-		printVerboseWorktrees(cmd, managedWorktrees, setup.Config)
+		printVerboseWorktrees(cmd, managedWorktrees, setup.Config, setup.RepoRoot)
 	} else {
 		printCompactWorktrees(cmd, managedWorktrees)
 	}
@@ -154,7 +154,7 @@ func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo) {
 }
 
 // printVerboseWorktrees prints worktrees in detailed multi-line format
-func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, cfg *config.Config) {
+func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, cfg *config.Config, repoRoot string) {
 	out := cmd.OutOrStdout()
 	separator := strings.Repeat("=", 80)
 
@@ -166,13 +166,9 @@ func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, cfg *co
 				Name:        wt.name,
 				Path:        wt.path,
 				Branch:      wt.branch,
-				RepoRoot:    cfg.WorktreeDir, // Will be set properly by hooks package
+				RepoRoot:    repoRoot,
 				WorktreeDir: cfg.WorktreeDir,
 				Index:       wt.index,
-			}
-			// Get repo root from the worktree path
-			if mainRoot, err := config.GetMainRepoRoot(); err == nil {
-				env.RepoRoot = mainRoot
 			}
 			hookOutput, _ = hooks.RunInfo(cfg, env)
 		}

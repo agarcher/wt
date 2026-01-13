@@ -192,7 +192,7 @@ hooks:
 ```bash
 #!/bin/bash
 # Output key-value pairs that align with built-in fields
-echo "URL: https://localhost:$((5173 + WT_INDEX * 10))"
+echo "URL: http://localhost:$((5173 + WT_INDEX * 10))"
 echo "Database: dev_${WT_NAME}"
 ```
 
@@ -270,7 +270,7 @@ Displays detailed information about a worktree. If no name is provided and you'r
   Index:   2
   Created: 2025-01-10 (3 days ago)
   Status:  ↑3 ↓1 [in_progress, dirty]
-  URL:     https://localhost:5193
+  URL:     http://localhost:5193
 ================================================================================
 ```
 

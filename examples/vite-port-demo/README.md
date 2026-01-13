@@ -72,7 +72,7 @@ Output:
   Index:   1
   Created: 2025-01-10 (3 days ago)
   Status:  [new]
-  URL:     https://localhost:5183
+  URL:     http://localhost:5183
 ================================================================================
 ```
 
