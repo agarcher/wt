@@ -171,6 +171,8 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 func confirmAction(prompt string) bool {
 	reader := bufio.NewReader(os.Stdin)
+	// Flush stdout to ensure all previous output is visible before prompting
+	_ = os.Stdout.Sync()
 	fmt.Printf("%s [y/N] ", prompt)
 	response, err := reader.ReadString('\n')
 	if err != nil {
