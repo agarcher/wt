@@ -24,10 +24,10 @@ go test -v -run TestName ./internal/commands/
 ### Package Structure
 
 - **cmd/wt/main.go** - Entry point, delegates to `commands.Execute()`
-- **internal/commands/** - Cobra command implementations (create, delete, list, cd, exit, init, root)
+- **internal/commands/** - Cobra command implementations (create, delete, list, info, cd, exit, init, root)
 - **internal/config/** - Loads and parses `.wt.yaml` configuration files
 - **internal/git/** - Wraps `git worktree` commands, parses porcelain output
-- **internal/hooks/** - Executes lifecycle hooks (pre_create, post_create, pre_delete, post_delete)
+- **internal/hooks/** - Executes lifecycle hooks (pre_create, post_create, pre_delete, post_delete, info)
 - **internal/shell/** - Generates shell integration functions for zsh/bash/fish
 
 ### Key Design Patterns

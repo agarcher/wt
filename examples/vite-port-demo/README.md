@@ -56,10 +56,33 @@ Vite automatically loads `.env.local` and uses the configured port.
 
 Each worktree runs on its own port, allowing parallel development and testing.
 
+## Viewing Worktree Info
+
+Use `wt info` to see the dev server URL for any worktree:
+
+```bash
+wt info feature-a
+```
+
+Output:
+```
+================================================================================
+* feature-a
+  Branch:  feature-a
+  Index:   1
+  Created: 2025-01-10 (3 days ago)
+  Status:  [new]
+  URL:     https://localhost:5183
+================================================================================
+```
+
+The URL is provided by the info hook configured in `.wt.yaml`.
+
 ## Files
 
-- `.wt.yaml` - Configures the post_create hooks
+- `.wt.yaml` - Configures the post_create and info hooks
 - `scripts/copy-node-modules.sh` - Hook that copies node_modules to the worktree
 - `scripts/setup-ports.sh` - Hook that generates `.env.local` with the unique port
+- `scripts/show-info.sh` - Hook that displays the dev server URL in `wt info`
 - `vite.config.js` - Reads `VITE_PORT` from environment
 - `src/main.js` - Displays current port on the page

@@ -138,6 +138,10 @@ hooks:
   # Runs after worktree deletion (in repo root)
   post_delete:
     - script: ./scripts/cleanup.sh
+
+  # Runs for wt info and wt list -v (in worktree)
+  info:
+    - script: ./scripts/show-info.sh
 ```
 
 ### Hook Environment Variables
@@ -173,6 +177,35 @@ index:
   max: 20  # Optional: limit indexes to 1-20
 ```
 
+### Info Hooks
+
+Info hooks let you display custom worktree-specific information in `wt info` and `wt list -v`. Unlike other hooks that run during lifecycle events, info hooks run on-demand and their output is captured and displayed.
+
+**Configuration:**
+```yaml
+hooks:
+  info:
+    - script: ./scripts/show-info.sh
+```
+
+**Example script:**
+```bash
+#!/bin/bash
+# Output key-value pairs that align with built-in fields
+echo "URL: https://localhost:$((5173 + WT_INDEX * 10))"
+echo "Database: dev_${WT_NAME}"
+```
+
+**Output format:**
+- Lines matching `Key: value` format are aligned with built-in keys (Branch, Index, etc.)
+- Other output is displayed as-is below the key-value section
+
+This is useful for displaying:
+- Dev server URLs
+- Database connection info
+- Port assignments
+- Any worktree-specific configuration
+
 ## Commands
 
 | Command | Description |
@@ -181,6 +214,7 @@ index:
 | `wt delete [name]` | Delete a worktree and its branch |
 | `wt cleanup` | Remove worktrees with merged branches |
 | `wt list` | List all worktrees |
+| `wt info [name]` | Show detailed worktree information |
 | `wt cd <name>` | Change to a worktree directory |
 | `wt exit` | Return to main repository |
 | `wt root` | Print main repository path |
@@ -219,6 +253,28 @@ Flags:
 ```
 
 The `cleanup` command finds worktrees whose branches have been merged into the default branch (main/master) and removes them. This is useful for cleaning up after completing work on feature branches.
+
+### Info Command
+
+```bash
+wt info [name]
+```
+
+Displays detailed information about a worktree. If no name is provided and you're inside a worktree, shows info for the current worktree.
+
+**Example output:**
+```
+================================================================================
+* feature-auth
+  Branch:  feature-auth
+  Index:   2
+  Created: 2025-01-10 (3 days ago)
+  Status:  ↑3 ↓1 [in_progress, dirty]
+  URL:     https://localhost:5193
+================================================================================
+```
+
+The `URL` line comes from an info hook (see [Info Hooks](#info-hooks) below).
 
 ### Config Options
 
@@ -289,6 +345,7 @@ See the `examples/hooks/` directory for example hook scripts:
 - `copy-env.sh` - Copy `.env` files from main repo to worktree
 - `pre-delete-check.sh` - Warn about uncommitted changes before deletion
 - `setup-ports.sh` - Configure unique ports based on `WT_INDEX`
+- `show-info.sh` - Display dev server URL in `wt info` output
 
 ## Why wt?
 
