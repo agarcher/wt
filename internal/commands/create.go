@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -128,8 +129,14 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Worktree %q created successfully\n", name)
 
-	// Output the path to stdout on the last line for the shell wrapper to use
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), worktreePath)
+	// Output the path for shell wrapper or print helpful message for direct invocation
+	if cdFile := os.Getenv("WT_CD_FILE"); cdFile != "" {
+		// Shell wrapper mode: write path to file for cd
+		_ = os.WriteFile(cdFile, []byte(worktreePath+"\n"), 0600)
+	} else {
+		// Direct invocation: print helpful message
+		cmd.Printf("\nRun `cd %s` to open your new worktree\n", worktreePath)
+	}
 
 	return nil
 }

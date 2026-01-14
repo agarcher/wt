@@ -160,20 +160,20 @@ wt() {
   # Commands that need cd handling
   case "$1" in
     create|delete|cleanup)
-      # Use temp file to capture output while streaming in real-time
-      local tmpfile=$(mktemp)
-      trap "rm -f '$tmpfile'" EXIT
-      command wt "$@" 2>&1 | tee "$tmpfile"
-      local exit_code=${PIPESTATUS[0]:-${pipestatus[1]}}
+      # Use temp file to communicate cd target from Go
+      local cdfile=$(mktemp)
+      trap "rm -f '$cdfile'" EXIT
+      WT_CD_FILE="$cdfile" command wt "$@"
+      local exit_code=$?
 
-      if [[ $exit_code -eq 0 ]]; then
-        # cd to path on last line if it's a directory
-        local target=$(tail -1 "$tmpfile")
+      # cd to path if one was written
+      if [[ -s "$cdfile" ]]; then
+        local target=$(cat "$cdfile")
         if [[ -d "$target" ]]; then
           cd "$target"
         fi
       fi
-      rm -f "$tmpfile"
+      rm -f "$cdfile"
       trap - EXIT
       return $exit_code
       ;;
@@ -346,20 +346,20 @@ wt() {
 
   case "$1" in
     create|delete|cleanup)
-      # Use temp file to capture output while streaming in real-time
-      local tmpfile=$(mktemp)
-      trap "rm -f '$tmpfile'" EXIT
-      command wt "$@" 2>&1 | tee "$tmpfile"
-      local exit_code=${PIPESTATUS[0]}
+      # Use temp file to communicate cd target from Go
+      local cdfile=$(mktemp)
+      trap "rm -f '$cdfile'" EXIT
+      WT_CD_FILE="$cdfile" command wt "$@"
+      local exit_code=$?
 
-      if [[ $exit_code -eq 0 ]]; then
-        # cd to path on last line if it's a directory
-        local target=$(tail -1 "$tmpfile")
+      # cd to path if one was written
+      if [[ -s "$cdfile" ]]; then
+        local target=$(cat "$cdfile")
         if [[ -d "$target" ]]; then
           cd "$target"
         fi
       fi
-      rm -f "$tmpfile"
+      rm -f "$cdfile"
       trap - EXIT
       return $exit_code
       ;;
@@ -496,19 +496,19 @@ function wt
 
   switch $argv[1]
     case create delete cleanup
-      # Use temp file to capture output while streaming in real-time
-      set -l tmpfile (mktemp)
-      command wt $argv 2>&1 | tee "$tmpfile"
-      set -l exit_code $pipestatus[1]
+      # Use temp file to communicate cd target from Go
+      set -l cdfile (mktemp)
+      WT_CD_FILE="$cdfile" command wt $argv
+      set -l exit_code $status
 
-      if test $exit_code -eq 0
-        # cd to path on last line if it's a directory
-        set -l target (tail -1 "$tmpfile")
+      # cd to path if one was written
+      if test -s "$cdfile"
+        set -l target (cat "$cdfile")
         if test -d "$target"
           cd "$target"
         end
       end
-      rm -f "$tmpfile"
+      rm -f "$cdfile"
       return $exit_code
 
     case cd

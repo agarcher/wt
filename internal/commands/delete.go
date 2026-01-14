@@ -161,9 +161,15 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Worktree %q deleted successfully\n", name)
 
-	// If user was in the deleted worktree, output repo root for shell wrapper to cd
+	// If user was in the deleted worktree, help them navigate back
 	if inDeletedWorktree {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), repoRoot)
+		if cdFile := os.Getenv("WT_CD_FILE"); cdFile != "" {
+			// Shell wrapper mode: write path to file for cd
+			_ = os.WriteFile(cdFile, []byte(repoRoot+"\n"), 0600)
+		} else {
+			// Direct invocation: print helpful message
+			cmd.Printf("\nRun `cd %s` to return to the repository root\n", repoRoot)
+		}
 	}
 
 	return nil

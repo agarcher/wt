@@ -238,9 +238,15 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Cleaned up %d worktree(s)\n", deleted)
 
-	// If user was in a deleted worktree, output repo root for shell wrapper to cd
+	// If user was in a deleted worktree, help them navigate back
 	if inDeletedWorktree && deleted > 0 {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), setup.RepoRoot)
+		if cdFile := os.Getenv("WT_CD_FILE"); cdFile != "" {
+			// Shell wrapper mode: write path to file for cd
+			_ = os.WriteFile(cdFile, []byte(setup.RepoRoot+"\n"), 0600)
+		} else {
+			// Direct invocation: print helpful message
+			cmd.Printf("\nRun `cd %s` to return to the repository root\n", setup.RepoRoot)
+		}
 	}
 
 	return nil
