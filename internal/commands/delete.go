@@ -10,6 +10,7 @@ import (
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/git"
 	"github.com/agarcher/wt/internal/hooks"
+	"github.com/agarcher/wt/internal/userconfig"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ var (
 )
 
 func init() {
-	deleteCmd.Flags().BoolVarP(&deleteForce, "force", "f", false, "Force deletion even with uncommitted changes")
+	deleteCmd.Flags().BoolVarP(&deleteForce, "force", "f", false, "Force deletion even with uncommitted or unmerged changes")
 	deleteCmd.Flags().BoolVarP(&deleteKeepBranch, "keep-branch", "k", false, "Keep the associated branch (default: delete it)")
 	rootCmd.AddCommand(deleteCmd)
 }
@@ -32,8 +33,11 @@ var deleteCmd = &cobra.Command{
 If no name is provided and you're currently inside a worktree,
 that worktree will be deleted.
 
-By default, deletion will fail if there are uncommitted changes.
-Use --force to override this check.
+By default, deletion will fail if:
+  - There are uncommitted changes (modified or untracked files)
+  - There are commits not merged into the comparison branch
+
+Use --force to override these safety checks.
 
 By default, the associated git branch is also deleted.
 Use --keep-branch to preserve it.`,
@@ -106,25 +110,74 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		env.Index = idx
 	}
 
-	// Check for uncommitted changes (unless --force)
+	// Safety checks (unless --force)
 	if !deleteForce {
+		var issues []string
+
+		// Check for uncommitted changes (dirty files)
 		hasChanges, err := git.HasUncommittedChanges(worktreePath)
 		if err != nil {
 			return fmt.Errorf("failed to check for changes: %w", err)
 		}
 		if hasChanges {
-			cmd.Printf("Worktree %q has uncommitted changes.\n", name)
-			if !confirmAction("Delete anyway?") {
-				return fmt.Errorf("aborted")
+			issues = append(issues, "has uncommitted changes (modified or untracked files)")
+		}
+
+		// Check for unmerged commits (commits ahead of comparison ref)
+		// Load user configuration for fetch/remote settings
+		userCfg, _ := userconfig.Load()
+
+		// Determine remote for this repo (empty = local comparison)
+		remote := userCfg.GetRemoteForRepo(repoRoot)
+
+		// Determine comparison branch from repo config, or auto-detect
+		comparisonBranch := cfg.DefaultBranch
+		if comparisonBranch == "" {
+			comparisonBranch, _ = git.GetDefaultBranch(repoRoot)
+			if comparisonBranch == "" {
+				comparisonBranch = "main" // Ultimate fallback
 			}
 		}
 
-		hasUnpushed, err := git.HasUnpushedCommits(worktreePath)
-		if err == nil && hasUnpushed {
-			cmd.Printf("Worktree %q has unpushed commits.\n", name)
-			if !confirmAction("Delete anyway?") {
-				return fmt.Errorf("aborted")
+		// Build comparison ref based on whether remote is configured
+		var comparisonRef string
+		if remote != "" {
+			// Remote comparison mode - fetch first if enabled
+			remoteRef := remote + "/" + comparisonBranch
+
+			if userCfg.GetFetchForRepo(repoRoot) {
+				if err := git.FetchRemoteQuiet(repoRoot, remote); err != nil {
+					cmd.PrintErrf("Warning: failed to fetch from %s: %v\n", remote, err)
+				}
 			}
+
+			// Verify the remote ref exists, fall back to local if not
+			if git.RefExists(repoRoot, remoteRef) {
+				comparisonRef = remoteRef
+			} else {
+				comparisonRef = comparisonBranch
+			}
+		} else {
+			// Local comparison mode (default)
+			comparisonRef = comparisonBranch
+		}
+
+		ahead, _, _ := git.GetCommitsAheadBehind(repoRoot, worktreePath, comparisonRef)
+		if ahead > 0 {
+			if ahead == 1 {
+				issues = append(issues, fmt.Sprintf("has 1 commit not merged into %s", comparisonRef))
+			} else {
+				issues = append(issues, fmt.Sprintf("has %d commits not merged into %s", ahead, comparisonRef))
+			}
+		}
+
+		if len(issues) > 0 {
+			cmd.PrintErrf("Error: cannot delete worktree %q:\n", name)
+			for _, issue := range issues {
+				cmd.PrintErrf("  - %s\n", issue)
+			}
+			cmd.PrintErrln("\nUse --force to delete anyway.")
+			return fmt.Errorf("worktree has uncommitted or unmerged changes")
 		}
 	}
 

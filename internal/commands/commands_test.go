@@ -486,6 +486,144 @@ func TestDeleteNonexistent(t *testing.T) {
 	}
 }
 
+func TestDeleteFailsWithUncommittedChanges(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "dirty-wt")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	// Add uncommitted changes (dirty file)
+	worktreePath := filepath.Join(repoRoot, "worktrees", "dirty-wt")
+	if err := os.WriteFile(filepath.Join(worktreePath, "dirty.txt"), []byte("dirty"), 0644); err != nil {
+		t.Fatalf("failed to create dirty file: %v", err)
+	}
+
+	// Delete should fail without --force
+	_, stderr, err := executeCommand("delete", "dirty-wt")
+	if err == nil {
+		t.Error("expected error when deleting worktree with uncommitted changes")
+	}
+	if !strings.Contains(stderr, "uncommitted changes") {
+		t.Errorf("expected error message about uncommitted changes, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "--force") {
+		t.Errorf("expected hint about --force, got: %s", stderr)
+	}
+
+	// Verify worktree still exists
+	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
+		t.Error("worktree should still exist after failed delete")
+	}
+
+	// Now delete with --force should succeed
+	_, _, err = executeCommand("delete", "dirty-wt", "--force")
+	if err != nil {
+		t.Fatalf("delete --force command failed: %v", err)
+	}
+
+	// Verify worktree is gone
+	if _, err := os.Stat(worktreePath); !os.IsNotExist(err) {
+		t.Error("worktree should be deleted after --force")
+	}
+}
+
+func TestDeleteFailsWithUnmergedCommits(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "unmerged-wt")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	// Add a commit in the worktree (not merged to main)
+	worktreePath := filepath.Join(repoRoot, "worktrees", "unmerged-wt")
+	if err := os.WriteFile(filepath.Join(worktreePath, "feature.txt"), []byte("feature"), 0644); err != nil {
+		t.Fatalf("failed to create feature file: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", "feature.txt")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git add failed: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "Add feature")
+	cmd.Dir = worktreePath
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git commit failed: %v", err)
+	}
+
+	// Delete should fail without --force
+	_, stderr, err := executeCommand("delete", "unmerged-wt")
+	if err == nil {
+		t.Error("expected error when deleting worktree with unmerged commits")
+	}
+	if !strings.Contains(stderr, "not merged") {
+		t.Errorf("expected error message about unmerged commits, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "--force") {
+		t.Errorf("expected hint about --force, got: %s", stderr)
+	}
+
+	// Verify worktree still exists
+	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
+		t.Error("worktree should still exist after failed delete")
+	}
+
+	// Now delete with --force should succeed
+	_, _, err = executeCommand("delete", "unmerged-wt", "--force")
+	if err != nil {
+		t.Fatalf("delete --force command failed: %v", err)
+	}
+
+	// Verify worktree is gone
+	if _, err := os.Stat(worktreePath); !os.IsNotExist(err) {
+		t.Error("worktree should be deleted after --force")
+	}
+}
+
+func TestDeleteSucceedsWithCleanWorktree(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	_ = os.Chdir(repoRoot)
+
+	// Create a worktree
+	_, _, err := executeCommand("create", "clean-wt")
+	if err != nil {
+		t.Fatalf("create command failed: %v", err)
+	}
+
+	worktreePath := filepath.Join(repoRoot, "worktrees", "clean-wt")
+
+	// Delete should succeed without --force (clean worktree, no new commits)
+	_, _, err = executeCommand("delete", "clean-wt")
+	if err != nil {
+		t.Fatalf("delete command failed for clean worktree: %v", err)
+	}
+
+	// Verify worktree is gone
+	if _, err := os.Stat(worktreePath); !os.IsNotExist(err) {
+		t.Error("worktree should be deleted")
+	}
+}
+
 func TestCdNonexistent(t *testing.T) {
 	repoRoot, cleanup := setupTestRepo(t)
 	defer cleanup()
