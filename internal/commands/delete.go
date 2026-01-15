@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/git"
@@ -146,8 +147,19 @@ func runDelete(cmd *cobra.Command, args []string) error {
 			remoteRef := remote + "/" + comparisonBranch
 
 			if userCfg.GetFetchForRepo(repoRoot) {
-				if err := git.FetchRemoteQuiet(repoRoot, remote); err != nil {
-					cmd.PrintErrf("Warning: failed to fetch from %s: %v\n", remote, err)
+				fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+				lastFetch, _ := git.GetLastFetchTime(repoRoot, remote)
+				timeSinceLastFetch := time.Since(lastFetch)
+
+				if fetchInterval > 0 && timeSinceLastFetch < fetchInterval {
+					// Skip fetch - within interval
+					cmd.PrintErrf("Skipping fetch (last fetch %s ago)\n", formatDuration(timeSinceLastFetch))
+				} else {
+					if err := git.FetchRemoteQuiet(repoRoot, remote); err != nil {
+						cmd.PrintErrf("Warning: failed to fetch from %s: %v\n", remote, err)
+					} else {
+						_ = git.SetLastFetchTime(repoRoot, remote)
+					}
 				}
 			}
 

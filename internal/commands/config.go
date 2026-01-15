@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/userconfig"
@@ -32,20 +33,23 @@ var configCmd = &cobra.Command{
 User settings are stored in ~/.config/wt/config.yaml
 
 Configuration keys:
-  remote    Remote to compare against (empty = local comparison)
-  fetch     Auto-fetch before list/cleanup (only applies when remote is set)
+  remote          Remote to compare against (empty = local comparison)
+  fetch           Auto-fetch before list/cleanup (only applies when remote is set)
+  fetch_interval  Minimum time between fetches (e.g., "5m", "1h"). Default: 5m
 
 Examples:
-  wt config --list                  # List all settings
-  wt config --show-origin           # Show where each value comes from
-  wt config fetch                   # Get the value of 'fetch'
-  wt config --global remote origin  # Set global remote
-  wt config --global fetch true     # Enable auto-fetch globally
-  wt config remote upstream         # Set remote for current repo only
-  wt config --unset remote          # Remove per-repo remote override
+  wt config --list                       # List all settings
+  wt config --show-origin                # Show where each value comes from
+  wt config fetch                        # Get the value of 'fetch'
+  wt config --global remote origin       # Set global remote
+  wt config --global fetch true          # Enable auto-fetch globally
+  wt config --global fetch_interval 10m  # Set fetch interval to 10 minutes
+  wt config remote upstream              # Set remote for current repo only
+  wt config fetch_interval 0             # Disable fetch caching for this repo
+  wt config --unset remote               # Remove per-repo remote override
 
-Note: 'fetch' only has an effect when 'remote' is set. If remote is empty,
-comparisons are done against the local branch and fetch is ignored.`,
+Note: 'fetch' and 'fetch_interval' only have an effect when 'remote' is set.
+If remote is empty, comparisons are done against the local branch.`,
 	RunE: runConfig,
 }
 
@@ -102,6 +106,9 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 		// Only show fetch=false if remote is set (otherwise it's meaningless)
 		_, _ = fmt.Fprintf(out, "fetch = false (global)\n")
 	}
+	if cfg.FetchInterval != "" {
+		_, _ = fmt.Fprintf(out, "fetch_interval = %s (global)\n", cfg.FetchInterval)
+	}
 
 	// Print per-repo values
 	for repoPath, repoConfig := range cfg.Repos {
@@ -110,6 +117,9 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 		}
 		if repoConfig.Fetch != nil {
 			_, _ = fmt.Fprintf(out, "repos.%s.fetch = %v\n", repoPath, *repoConfig.Fetch)
+		}
+		if repoConfig.FetchInterval != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.fetch_interval = %s\n", repoPath, *repoConfig.FetchInterval)
 		}
 	}
 
@@ -131,6 +141,7 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 	if repoRoot != "" {
 		remote := cfg.GetRemoteForRepo(repoRoot)
 		fetch := cfg.GetFetchForRepo(repoRoot)
+		fetchInterval := cfg.GetFetchIntervalForRepo(repoRoot)
 
 		// Determine source of remote
 		if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.Remote != "" {
@@ -150,6 +161,15 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 			_, _ = fmt.Fprintf(out, "fetch = %-21v (default)\n", false)
 		}
 
+		// Determine source of fetch_interval
+		if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.FetchInterval != nil {
+			_, _ = fmt.Fprintf(out, "fetch_interval = %-14s %s (repos.%s)\n", *repoConfig.FetchInterval, configPath, repoRoot)
+		} else if cfg.FetchInterval != "" {
+			_, _ = fmt.Fprintf(out, "fetch_interval = %-14s %s (global)\n", cfg.FetchInterval, configPath)
+		} else {
+			_, _ = fmt.Fprintf(out, "fetch_interval = %-14s (default)\n", fetchInterval)
+		}
+
 		// Show repo's default_branch if set
 		if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.DefaultBranch != "" {
 			_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", repoCfg.DefaultBranch)
@@ -158,6 +178,11 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		// Not in a repo, just show global values
 		_, _ = fmt.Fprintf(out, "remote = %-20s %s (global)\n", cfg.Remote, configPath)
 		_, _ = fmt.Fprintf(out, "fetch = %-21v %s (global)\n", cfg.Fetch, configPath)
+		fetchInterval := cfg.FetchInterval
+		if fetchInterval == "" {
+			fetchInterval = userconfig.DefaultFetchInterval
+		}
+		_, _ = fmt.Fprintf(out, "fetch_interval = %-14s %s (global)\n", fetchInterval, configPath)
 	}
 
 	return nil
@@ -188,6 +213,8 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetRemoteForRepo(repoRoot))
 		case "fetch":
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchForRepo(repoRoot))
+		case "fetch_interval":
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchIntervalForRepo(repoRoot))
 		}
 	}
 
@@ -203,6 +230,13 @@ func setConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key, value string
 	// Validate fetch value
 	if key == "fetch" && value != "true" && value != "false" {
 		return fmt.Errorf("fetch must be 'true' or 'false'")
+	}
+
+	// Validate fetch_interval value (must be a valid duration)
+	if key == "fetch_interval" {
+		if _, err := time.ParseDuration(value); err != nil {
+			return fmt.Errorf("fetch_interval must be a valid duration (e.g., '5m', '1h', '30s')")
+		}
 	}
 
 	if configGlobal {

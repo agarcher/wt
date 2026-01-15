@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,8 +18,9 @@ const (
 
 // RepoConfig holds per-repository user settings
 type RepoConfig struct {
-	Remote string `yaml:"remote,omitempty"`
-	Fetch  *bool  `yaml:"fetch,omitempty"` // pointer to distinguish unset from false
+	Remote        string  `yaml:"remote,omitempty"`
+	Fetch         *bool   `yaml:"fetch,omitempty"`          // pointer to distinguish unset from false
+	FetchInterval *string `yaml:"fetch_interval,omitempty"` // pointer to distinguish unset from empty
 }
 
 // UserConfig holds user-level configuration
@@ -27,16 +29,22 @@ type UserConfig struct {
 	Remote string `yaml:"remote,omitempty"`
 	// Fetch enables auto-fetch before list/cleanup (only applies when remote is set)
 	Fetch bool `yaml:"fetch,omitempty"`
+	// FetchInterval is the minimum time between fetches (e.g., "5m", "1h")
+	FetchInterval string `yaml:"fetch_interval,omitempty"`
 	// Repos holds per-repository overrides keyed by absolute repo path
 	Repos map[string]RepoConfig `yaml:"repos,omitempty"`
 }
 
+// DefaultFetchInterval is the default minimum time between fetches
+const DefaultFetchInterval = "5m"
+
 // DefaultUserConfig returns a config with default values
 func DefaultUserConfig() *UserConfig {
 	return &UserConfig{
-		Remote: "",    // default to local comparison
-		Fetch:  false, // no automatic network calls
-		Repos:  make(map[string]RepoConfig),
+		Remote:        "",                   // default to local comparison
+		Fetch:         false,                // no automatic network calls
+		FetchInterval: DefaultFetchInterval, // default 5 minutes between fetches
+		Repos:         make(map[string]RepoConfig),
 	}
 }
 
@@ -148,6 +156,24 @@ func (c *UserConfig) GetFetchForRepo(repoPath string) bool {
 	return c.Fetch
 }
 
+// GetFetchIntervalForRepo returns the effective fetch interval for a given repo path
+// Returns per-repo override if set, otherwise global default, otherwise DefaultFetchInterval
+func (c *UserConfig) GetFetchIntervalForRepo(repoPath string) time.Duration {
+	intervalStr := c.FetchInterval
+	if intervalStr == "" {
+		intervalStr = DefaultFetchInterval
+	}
+
+	// Check for per-repo override
+	if repoConfig, ok := c.Repos[repoPath]; ok && repoConfig.FetchInterval != nil {
+		intervalStr = *repoConfig.FetchInterval
+	}
+
+	// Parse duration, return 0 on error (which means always fetch)
+	d, _ := time.ParseDuration(intervalStr)
+	return d
+}
+
 // SetGlobal sets a global config value
 func (c *UserConfig) SetGlobal(key, value string) error {
 	switch key {
@@ -155,6 +181,8 @@ func (c *UserConfig) SetGlobal(key, value string) error {
 		c.Remote = value
 	case "fetch":
 		c.Fetch = value == "true"
+	case "fetch_interval":
+		c.FetchInterval = value
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -168,6 +196,8 @@ func (c *UserConfig) UnsetGlobal(key string) error {
 		c.Remote = ""
 	case "fetch":
 		c.Fetch = false
+	case "fetch_interval":
+		c.FetchInterval = ""
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -188,6 +218,8 @@ func (c *UserConfig) SetForRepo(repoPath, key, value string) error {
 	case "fetch":
 		fetchVal := value == "true"
 		repoConfig.Fetch = &fetchVal
+	case "fetch_interval":
+		repoConfig.FetchInterval = &value
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -212,12 +244,14 @@ func (c *UserConfig) UnsetForRepo(repoPath, key string) error {
 		repoConfig.Remote = ""
 	case "fetch":
 		repoConfig.Fetch = nil
+	case "fetch_interval":
+		repoConfig.FetchInterval = nil
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
 
 	// If repo config is now empty, remove it entirely
-	if repoConfig.Remote == "" && repoConfig.Fetch == nil {
+	if repoConfig.Remote == "" && repoConfig.Fetch == nil && repoConfig.FetchInterval == nil {
 		delete(c.Repos, repoPath)
 	} else {
 		c.Repos[repoPath] = repoConfig
@@ -236,6 +270,11 @@ func (c *UserConfig) GetGlobal(key string) (string, error) {
 			return "true", nil
 		}
 		return "false", nil
+	case "fetch_interval":
+		if c.FetchInterval != "" {
+			return c.FetchInterval, nil
+		}
+		return DefaultFetchInterval, nil
 	default:
 		return "", fmt.Errorf("unknown config key: %s", key)
 	}
@@ -261,6 +300,10 @@ func (c *UserConfig) GetForRepo(repoPath, key string) (string, bool) {
 			}
 			return "false", true
 		}
+	case "fetch_interval":
+		if repoConfig.FetchInterval != nil {
+			return *repoConfig.FetchInterval, true
+		}
 	}
 
 	return "", false
@@ -268,5 +311,5 @@ func (c *UserConfig) GetForRepo(repoPath, key string) (string, bool) {
 
 // ValidKeys returns the list of valid configuration keys
 func ValidKeys() []string {
-	return []string{"remote", "fetch"}
+	return []string{"remote", "fetch", "fetch_interval"}
 }

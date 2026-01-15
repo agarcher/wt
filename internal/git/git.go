@@ -238,6 +238,27 @@ func UpdateRemoteHead(repoRoot, remote string) error {
 	return cmd.Run()
 }
 
+// GetLastFetchTime returns the time of the last fetch for a remote
+func GetLastFetchTime(repoRoot, remote string) (time.Time, error) {
+	fetchFile := filepath.Join(repoRoot, ".git", "wt-last-fetch-"+remote)
+	data, err := os.ReadFile(fetchFile)
+	if err != nil {
+		return time.Time{}, err
+	}
+	timestamp, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(timestamp, 0), nil
+}
+
+// SetLastFetchTime records the current time as the last fetch time for a remote
+func SetLastFetchTime(repoRoot, remote string) error {
+	fetchFile := filepath.Join(repoRoot, ".git", "wt-last-fetch-"+remote)
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	return os.WriteFile(fetchFile, []byte(timestamp+"\n"), 0644)
+}
+
 // GetDefaultBranch returns the default branch name (main or master)
 func GetDefaultBranch(repoRoot string) (string, error) {
 	// Try to get the default branch from remote
