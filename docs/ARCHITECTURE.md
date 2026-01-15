@@ -7,30 +7,30 @@ This document describes the internal architecture of `wt` for developers who wan
 `wt` is a Git worktree manager CLI built with Go and Cobra. It follows a shell wrapper pattern similar to tools like direnv, zoxide, and starship.
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│                        User Shell                         │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  Shell Function (from `wt init zsh`)                │  │
-│  │  - Wraps binary calls                               │  │
-│  │  - Handles `cd` based on binary output              │  │
-│  │  - Passes through to PATH when not in wt repo       │  │
-│  └──────────────────────┬──────────────────────────────┘  │
-└─────────────────────────┼─────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                        User Shell                             │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  Shell Function (from `wt init zsh`)                    │  │
+│  │  - Wraps binary calls                                   │  │
+│  │  - Handles `cd` based on binary output                  │  │
+│  │  - Passes through to PATH when not in wt repo           │  │
+│  └──────────────────────┬──────────────────────────────────┘  │
+└─────────────────────────┼─────────────────────────────────────┘
                           │
                           ▼
-┌───────────────────────────────────────────────────────────┐
-│                     Go Binary (`wt`)                      │
-│  ┌───────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│  │   Commands    │  │   Config    │  │  Hook Executor  │  │
-│  │  - create     │  │  - .wt.yaml │  │  - pre_create   │  │
-│  │  - delete     │  │             │  │  - post_create  │  │
-│  │  - cleanup    │  │             │  │  - pre_delete   │  │
-│  │  - list       │  │             │  │  - post_delete  │  │
-│  │  - cd / exit  │  │             │  │                 │  │
-│  │  - init       │  │             │  │                 │  │
-│  │  - root       │  │             │  │                 │  │
-│  └───────────────┘  └─────────────┘  └─────────────────┘  │
-└───────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                     Go Binary (`wt`)                          │
+│  ┌───────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Commands    │  │   Config    │  │   Hook Executor     │  │
+│  │  - create     │  │  - .wt.yaml │  │  - pre_create       │  │
+│  │  - delete     │  │             │  │  - post_create      │  │
+│  │  - cleanup    │  │             │  │  - pre_delete       │  │
+│  │  - list       │  │             │  │  - post_delete      │  │
+│  │  - cd / exit  │  │             │  │  - info             │  │
+│  │  - init       │  │             │  │                     │  │
+│  │  - root       │  │             │  │                     │  │
+│  └───────────────┘  └─────────────┘  └─────────────────────┘  │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## Package Structure
@@ -62,27 +62,10 @@ wt/
 
 The tool determines whether it's running in the main repo or a worktree by checking if `.git` is a file (worktree) or directory (main repo). Git worktrees store their `.git` as a file containing a gitdir reference.
 
-### Hook Environment
-
-All hooks receive standardized environment variables:
-- `WT_NAME` - worktree name
-- `WT_PATH` - full path to worktree
-- `WT_BRANCH` - git branch name
-- `WT_REPO_ROOT` - main repository root
-- `WT_WORKTREE_DIR` - worktree directory name (e.g., "worktrees")
-- `WT_INDEX` - stable numeric index (1+), useful for port offsets
-
-### Worktree Index
-
-Each worktree receives a stable numeric index starting at 1 (index 0 is reserved for the main repo). The index system:
-- **Storage**: Index is stored in `.git/worktrees/<name>/wt-index` (automatically cleaned by git)
-- **Allocation**: Finds lowest unused index on creation
-- **Reuse**: Deleted worktree indexes become available for new worktrees
-- **Optional limit**: Configure `index.max` in `.wt.yaml` to cap the index range
-
 ### Version Injection
 
 Version is set at build time via ldflags:
+
 ```
 -X github.com/agarcher/wt/internal/commands.Version=$(VERSION)
 ```
@@ -93,34 +76,6 @@ Version is set at build time via ldflags:
 - `fmt.Fprintln(cmd.OutOrStdout(), ...)` writes to stdout (for paths, listings)
 
 This separation is important because the shell wrapper parses stdout to extract paths for `cd` commands.
-
-## Configuration
-
-The tool is configured per-repository via `.wt.yaml` in the repository root:
-
-```yaml
-version: 1
-worktree_dir: worktrees
-branch_pattern: "{name}"
-
-hooks:
-  pre_create:
-    - script: ./scripts/pre-create.sh
-  post_create:
-    - script: ./scripts/post-create.sh
-      env:
-        CUSTOM_VAR: "value"
-  pre_delete:
-    - script: ./scripts/pre-delete.sh
-  post_delete:
-    - script: ./scripts/post-delete.sh
-```
-
-### Why repo-local config?
-
-- Each repo can have different needs (port schemes, custom hooks)
-- No namespace pollution when not in a configured repo
-- Teams can version control their `.wt.yaml`
 
 ## Design Decisions
 
@@ -137,3 +92,9 @@ hooks:
 - Reduces external dependencies
 - More control over shell integration
 - direnv users can still use both (they don't conflict)
+
+### Why repo-local config?
+
+- Each repo can have different needs (port schemes, custom hooks)
+- No namespace pollution when not in a configured repo
+- Teams can version control their `.wt.yaml`

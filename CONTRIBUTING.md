@@ -1,19 +1,17 @@
-# Contributing to wt
+# Contributing
 
 Thanks for your interest in contributing to `wt`!
 
-## Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - Go 1.21+
 - Git 2.5+ (2.13+ recommended)
 - Make
 
-### Building
+## Building
 
 ```bash
-# Fork and clone the repository
+# Clone the repository
 git clone https://github.com/YOUR_USERNAME/wt.git
 cd wt
 
@@ -27,7 +25,7 @@ make test
 make lint
 ```
 
-### Testing Locally
+## Testing Locally
 
 This repository includes a `.wt.yaml` config, so you can test the tool against itself:
 
@@ -50,7 +48,8 @@ wt delete test-feature
 
 For details on the codebase structure and design patterns, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Git Workflow
+## Pull Requests
 
 - Fork the repository and submit PRs from your fork
 - Write clear commit messages
+- Always use merge commits (never squash or rebase)
