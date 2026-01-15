@@ -293,6 +293,9 @@ wt config fetch_interval never
 
 # Remove per-repo override
 wt config --unset fetch_interval
+
+# Remove global setting
+wt config --global --unset remote
 ```
 
 See [User Configuration](#user-configuration) for details.
