@@ -12,8 +12,8 @@ func TestDefaultUserConfig(t *testing.T) {
 	if cfg.Remote != "" {
 		t.Errorf("expected empty remote, got %q", cfg.Remote)
 	}
-	if cfg.Fetch != false {
-		t.Errorf("expected fetch to be false, got %v", cfg.Fetch)
+	if cfg.FetchInterval != DefaultFetchInterval {
+		t.Errorf("expected fetch_interval to be %q, got %q", DefaultFetchInterval, cfg.FetchInterval)
 	}
 	if cfg.Repos == nil {
 		t.Error("expected Repos to be initialized")
@@ -47,38 +47,6 @@ func TestGetRemoteForRepo(t *testing.T) {
 	}
 }
 
-func TestGetFetchForRepo(t *testing.T) {
-	trueVal := true
-	falseVal := false
-
-	cfg := &UserConfig{
-		Fetch: true,
-		Repos: map[string]RepoConfig{
-			"/path/to/repo1": {Fetch: &falseVal},
-			"/path/to/repo2": {Fetch: &trueVal},
-		},
-	}
-
-	tests := []struct {
-		name     string
-		repoPath string
-		want     bool
-	}{
-		{"per-repo override false", "/path/to/repo1", false},
-		{"per-repo override true", "/path/to/repo2", true},
-		{"falls back to global", "/path/to/repo3", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := cfg.GetFetchForRepo(tt.repoPath)
-			if got != tt.want {
-				t.Errorf("GetFetchForRepo(%q) = %v, want %v", tt.repoPath, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSetGlobal(t *testing.T) {
 	cfg := DefaultUserConfig()
 
@@ -89,11 +57,11 @@ func TestSetGlobal(t *testing.T) {
 		t.Errorf("expected remote to be 'upstream', got %q", cfg.Remote)
 	}
 
-	if err := cfg.SetGlobal("fetch", "true"); err != nil {
+	if err := cfg.SetGlobal("fetch_interval", "10m"); err != nil {
 		t.Errorf("SetGlobal failed: %v", err)
 	}
-	if cfg.Fetch != true {
-		t.Errorf("expected fetch to be true, got %v", cfg.Fetch)
+	if cfg.FetchInterval != "10m" {
+		t.Errorf("expected fetch_interval to be '10m', got %q", cfg.FetchInterval)
 	}
 
 	if err := cfg.SetGlobal("unknown", "value"); err == nil {
@@ -112,35 +80,35 @@ func TestSetForRepo(t *testing.T) {
 		t.Errorf("expected remote to be 'upstream', got %q", cfg.Repos[repoPath].Remote)
 	}
 
-	if err := cfg.SetForRepo(repoPath, "fetch", "true"); err != nil {
+	if err := cfg.SetForRepo(repoPath, "fetch_interval", "10m"); err != nil {
 		t.Errorf("SetForRepo failed: %v", err)
 	}
-	if cfg.Repos[repoPath].Fetch == nil || *cfg.Repos[repoPath].Fetch != true {
-		t.Errorf("expected fetch to be true")
+	if cfg.Repos[repoPath].FetchInterval == nil || *cfg.Repos[repoPath].FetchInterval != "10m" {
+		t.Errorf("expected fetch_interval to be '10m'")
 	}
 }
 
 func TestUnsetForRepo(t *testing.T) {
-	trueVal := true
+	intervalVal := "10m"
 	cfg := &UserConfig{
 		Repos: map[string]RepoConfig{
-			"/path/to/repo": {Remote: "upstream", Fetch: &trueVal},
+			"/path/to/repo": {Remote: "upstream", FetchInterval: &intervalVal},
 		},
 	}
 
-	// Unset remote but keep fetch
+	// Unset remote but keep fetch_interval
 	if err := cfg.UnsetForRepo("/path/to/repo", "remote"); err != nil {
 		t.Errorf("UnsetForRepo failed: %v", err)
 	}
 	if cfg.Repos["/path/to/repo"].Remote != "" {
 		t.Errorf("expected remote to be empty")
 	}
-	if cfg.Repos["/path/to/repo"].Fetch == nil {
-		t.Errorf("expected fetch to still be set")
+	if cfg.Repos["/path/to/repo"].FetchInterval == nil {
+		t.Errorf("expected fetch_interval to still be set")
 	}
 
-	// Unset fetch too - should remove the entire repo entry
-	if err := cfg.UnsetForRepo("/path/to/repo", "fetch"); err != nil {
+	// Unset fetch_interval too - should remove the entire repo entry
+	if err := cfg.UnsetForRepo("/path/to/repo", "fetch_interval"); err != nil {
 		t.Errorf("UnsetForRepo failed: %v", err)
 	}
 	if _, ok := cfg.Repos["/path/to/repo"]; ok {
@@ -150,8 +118,8 @@ func TestUnsetForRepo(t *testing.T) {
 
 func TestUnsetGlobal(t *testing.T) {
 	cfg := &UserConfig{
-		Remote: "origin",
-		Fetch:  true,
+		Remote:        "origin",
+		FetchInterval: "10m",
 	}
 
 	// Unset remote
@@ -161,16 +129,16 @@ func TestUnsetGlobal(t *testing.T) {
 	if cfg.Remote != "" {
 		t.Errorf("expected remote to be empty, got %q", cfg.Remote)
 	}
-	if cfg.Fetch != true {
-		t.Errorf("expected fetch to still be true")
+	if cfg.FetchInterval != "10m" {
+		t.Errorf("expected fetch_interval to still be '10m'")
 	}
 
-	// Unset fetch
-	if err := cfg.UnsetGlobal("fetch"); err != nil {
+	// Unset fetch_interval
+	if err := cfg.UnsetGlobal("fetch_interval"); err != nil {
 		t.Errorf("UnsetGlobal failed: %v", err)
 	}
-	if cfg.Fetch != false {
-		t.Errorf("expected fetch to be false, got %v", cfg.Fetch)
+	if cfg.FetchInterval != "" {
+		t.Errorf("expected fetch_interval to be empty, got %q", cfg.FetchInterval)
 	}
 
 	// Invalid key
@@ -195,7 +163,7 @@ func TestLoadAndSave(t *testing.T) {
 	// Test saving
 	cfg := DefaultUserConfig()
 	cfg.Remote = "origin"
-	cfg.Fetch = true
+	cfg.FetchInterval = "10m"
 	cfg.Repos["/path/to/repo"] = RepoConfig{Remote: "upstream"}
 
 	if err := Save(cfg); err != nil {
@@ -217,8 +185,8 @@ func TestLoadAndSave(t *testing.T) {
 	if loaded.Remote != "origin" {
 		t.Errorf("expected remote 'origin', got %q", loaded.Remote)
 	}
-	if loaded.Fetch != true {
-		t.Errorf("expected fetch true, got %v", loaded.Fetch)
+	if loaded.FetchInterval != "10m" {
+		t.Errorf("expected fetch_interval '10m', got %q", loaded.FetchInterval)
 	}
 	if loaded.Repos["/path/to/repo"].Remote != "upstream" {
 		t.Errorf("expected per-repo remote 'upstream', got %q", loaded.Repos["/path/to/repo"].Remote)
@@ -247,18 +215,18 @@ func TestLoadNonexistent(t *testing.T) {
 	if cfg.Remote != "" {
 		t.Errorf("expected empty remote, got %q", cfg.Remote)
 	}
-	if cfg.Fetch != false {
-		t.Errorf("expected fetch false, got %v", cfg.Fetch)
+	if cfg.FetchInterval != DefaultFetchInterval {
+		t.Errorf("expected fetch_interval to be default %q, got %q", DefaultFetchInterval, cfg.FetchInterval)
 	}
 }
 
 func TestValidKeys(t *testing.T) {
 	keys := ValidKeys()
-	if len(keys) != 3 {
-		t.Errorf("expected 3 valid keys, got %d", len(keys))
+	if len(keys) != 2 {
+		t.Errorf("expected 2 valid keys, got %d", len(keys))
 	}
 
-	expected := map[string]bool{"remote": true, "fetch": true, "fetch_interval": true}
+	expected := map[string]bool{"remote": true, "fetch_interval": true}
 	for _, key := range keys {
 		if !expected[key] {
 			t.Errorf("unexpected key: %s", key)

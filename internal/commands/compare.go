@@ -58,9 +58,9 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 		// Remote comparison mode
 		remoteRef := remote + "/" + branch // e.g., "origin/main"
 
-		// Fetch first if enabled (only makes sense with a remote)
-		if userCfg.GetFetchForRepo(repoRoot) {
-			fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+		// Fetch based on fetch_interval setting
+		fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+		if fetchInterval != userconfig.FetchIntervalNever {
 			lastFetch, _ := git.GetLastFetchTime(repoRoot, remote)
 			timeSinceLastFetch := time.Since(lastFetch)
 

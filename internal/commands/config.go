@@ -34,21 +34,18 @@ User settings are stored in ~/.config/wt/config.yaml
 
 Configuration keys:
   remote          Remote to compare against (empty = local comparison)
-  fetch           Auto-fetch before list/cleanup (only applies when remote is set)
-  fetch_interval  Minimum time between fetches (e.g., "5m", "1h"). Default: 5m
+  fetch_interval  Fetch interval: "5m", "1h", "0" (always), or "never" (disable)
 
 Examples:
   wt config --list                       # List all settings
   wt config --show-origin                # Show where each value comes from
-  wt config fetch                        # Get the value of 'fetch'
   wt config --global remote origin       # Set global remote
-  wt config --global fetch true          # Enable auto-fetch globally
-  wt config --global fetch_interval 10m  # Set fetch interval to 10 minutes
-  wt config remote upstream              # Set remote for current repo only
-  wt config fetch_interval 0             # Disable fetch caching for this repo
-  wt config --unset remote               # Remove per-repo remote override
+  wt config --global fetch_interval 10m  # Fetch at most every 10 minutes
+  wt config --global fetch_interval 0    # Always fetch (no caching)
+  wt config fetch_interval never         # Disable fetch for current repo
+  wt config --unset fetch_interval       # Remove per-repo override
 
-Note: 'fetch' and 'fetch_interval' only have an effect when 'remote' is set.
+Note: fetch_interval only has an effect when 'remote' is set.
 If remote is empty, comparisons are done against the local branch.`,
 	RunE: runConfig,
 }
@@ -100,12 +97,6 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 	if cfg.Remote != "" {
 		_, _ = fmt.Fprintf(out, "remote = %s (global)\n", cfg.Remote)
 	}
-	if cfg.Fetch {
-		_, _ = fmt.Fprintf(out, "fetch = true (global)\n")
-	} else if cfg.Remote != "" {
-		// Only show fetch=false if remote is set (otherwise it's meaningless)
-		_, _ = fmt.Fprintf(out, "fetch = false (global)\n")
-	}
 	if cfg.FetchInterval != "" {
 		_, _ = fmt.Fprintf(out, "fetch_interval = %s (global)\n", cfg.FetchInterval)
 	}
@@ -114,9 +105,6 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 	for repoPath, repoConfig := range cfg.Repos {
 		if repoConfig.Remote != "" {
 			_, _ = fmt.Fprintf(out, "repos.%s.remote = %s\n", repoPath, repoConfig.Remote)
-		}
-		if repoConfig.Fetch != nil {
-			_, _ = fmt.Fprintf(out, "repos.%s.fetch = %v\n", repoPath, *repoConfig.Fetch)
 		}
 		if repoConfig.FetchInterval != nil {
 			_, _ = fmt.Fprintf(out, "repos.%s.fetch_interval = %s\n", repoPath, *repoConfig.FetchInterval)
@@ -140,7 +128,6 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 	// Show effective values for current repo
 	if repoRoot != "" {
 		remote := cfg.GetRemoteForRepo(repoRoot)
-		fetch := cfg.GetFetchForRepo(repoRoot)
 		fetchInterval := cfg.GetFetchIntervalForRepo(repoRoot)
 
 		// Determine source of remote
@@ -150,15 +137,6 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 			_, _ = fmt.Fprintf(out, "remote = %-20s %s (global)\n", remote, configPath)
 		} else {
 			_, _ = fmt.Fprintf(out, "remote = %-20s (default: local comparison)\n", "\"\"")
-		}
-
-		// Determine source of fetch
-		if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.Fetch != nil {
-			_, _ = fmt.Fprintf(out, "fetch = %-21v %s (repos.%s)\n", fetch, configPath, repoRoot)
-		} else if cfg.Fetch {
-			_, _ = fmt.Fprintf(out, "fetch = %-21v %s (global)\n", fetch, configPath)
-		} else {
-			_, _ = fmt.Fprintf(out, "fetch = %-21v (default)\n", false)
 		}
 
 		// Determine source of fetch_interval
@@ -177,7 +155,6 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 	} else {
 		// Not in a repo, just show global values
 		_, _ = fmt.Fprintf(out, "remote = %-20s %s (global)\n", cfg.Remote, configPath)
-		_, _ = fmt.Fprintf(out, "fetch = %-21v %s (global)\n", cfg.Fetch, configPath)
 		fetchInterval := cfg.FetchInterval
 		if fetchInterval == "" {
 			fetchInterval = userconfig.DefaultFetchInterval
@@ -211,8 +188,6 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 		switch key {
 		case "remote":
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetRemoteForRepo(repoRoot))
-		case "fetch":
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchForRepo(repoRoot))
 		case "fetch_interval":
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchIntervalForRepo(repoRoot))
 		}
@@ -227,15 +202,12 @@ func setConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key, value string
 		return fmt.Errorf("unknown config key: %s\nValid keys: %s", key, strings.Join(userconfig.ValidKeys(), ", "))
 	}
 
-	// Validate fetch value
-	if key == "fetch" && value != "true" && value != "false" {
-		return fmt.Errorf("fetch must be 'true' or 'false'")
-	}
-
-	// Validate fetch_interval value (must be a valid duration)
+	// Validate fetch_interval value (must be a valid duration or "never")
 	if key == "fetch_interval" {
-		if _, err := time.ParseDuration(value); err != nil {
-			return fmt.Errorf("fetch_interval must be a valid duration (e.g., '5m', '1h', '30s')")
+		if value != "never" {
+			if _, err := time.ParseDuration(value); err != nil {
+				return fmt.Errorf("fetch_interval must be a valid duration (e.g., '5m', '1h', '0') or 'never'")
+			}
 		}
 	}
 
@@ -243,11 +215,6 @@ func setConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key, value string
 		// Set global value
 		if err := cfg.SetGlobal(key, value); err != nil {
 			return err
-		}
-
-		// Warn if setting fetch=true without remote
-		if key == "fetch" && value == "true" && cfg.Remote == "" {
-			cmd.PrintErrln("Warning: fetch has no effect when remote is not set")
 		}
 	} else {
 		// Set per-repo value
@@ -258,11 +225,6 @@ func setConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key, value string
 
 		if err := cfg.SetForRepo(repoRoot, key, value); err != nil {
 			return err
-		}
-
-		// Warn if setting fetch=true without remote for this repo
-		if key == "fetch" && value == "true" && cfg.GetRemoteForRepo(repoRoot) == "" {
-			cmd.PrintErrln("Warning: fetch has no effect when remote is not set")
 		}
 	}
 

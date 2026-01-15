@@ -1130,19 +1130,19 @@ func TestConfigSetAndGetGlobal(t *testing.T) {
 		t.Errorf("expected 'origin', got: %s", stdout)
 	}
 
-	// Set global fetch
-	_, _, err = executeCommand("config", "--global", "fetch", "true")
+	// Set global fetch_interval
+	_, _, err = executeCommand("config", "--global", "fetch_interval", "10m")
 	if err != nil {
-		t.Fatalf("config set fetch failed: %v", err)
+		t.Fatalf("config set fetch_interval failed: %v", err)
 	}
 
-	// Get global fetch
-	stdout, _, err = executeCommand("config", "--global", "fetch")
+	// Get global fetch_interval
+	stdout, _, err = executeCommand("config", "--global", "fetch_interval")
 	if err != nil {
-		t.Fatalf("config get fetch failed: %v", err)
+		t.Fatalf("config get fetch_interval failed: %v", err)
 	}
-	if !strings.Contains(stdout, "true") {
-		t.Errorf("expected 'true', got: %s", stdout)
+	if !strings.Contains(stdout, "10m") {
+		t.Errorf("expected '10m', got: %s", stdout)
 	}
 }
 
@@ -1182,7 +1182,7 @@ func TestConfigList(t *testing.T) {
 
 	// Set some values
 	_, _, _ = executeCommand("config", "--global", "remote", "origin")
-	_, _, _ = executeCommand("config", "--global", "fetch", "true")
+	_, _, _ = executeCommand("config", "--global", "fetch_interval", "10m")
 	_, _, _ = executeCommand("config", "remote", "upstream")
 
 	// List all config
@@ -1194,8 +1194,8 @@ func TestConfigList(t *testing.T) {
 	if !strings.Contains(stdout, "remote = origin") {
 		t.Errorf("expected global remote in list, got: %s", stdout)
 	}
-	if !strings.Contains(stdout, "fetch = true") {
-		t.Errorf("expected global fetch in list, got: %s", stdout)
+	if !strings.Contains(stdout, "fetch_interval = 10m") {
+		t.Errorf("expected global fetch_interval in list, got: %s", stdout)
 	}
 	if !strings.Contains(stdout, "remote = upstream") {
 		t.Errorf("expected per-repo remote in list, got: %s", stdout)
@@ -1275,7 +1275,7 @@ func TestConfigInvalidKey(t *testing.T) {
 	}
 }
 
-func TestConfigFetchWithoutRemoteWarning(t *testing.T) {
+func TestConfigFetchIntervalValidation(t *testing.T) {
 	repoRoot, _, cleanup := setupTestRepoWithIsolatedHome(t)
 	defer cleanup()
 
@@ -1284,14 +1284,28 @@ func TestConfigFetchWithoutRemoteWarning(t *testing.T) {
 	_ = os.Chdir(repoRoot)
 	defer func() { _ = os.Chdir(oldWd) }()
 
-	// Set fetch=true without remote (should warn)
-	_, stderr, err := executeCommand("config", "--global", "fetch", "true")
+	// Valid duration should work
+	_, _, err := executeCommand("config", "--global", "fetch_interval", "10m")
 	if err != nil {
-		t.Fatalf("config set failed: %v", err)
+		t.Fatalf("config set valid duration failed: %v", err)
 	}
 
-	if !strings.Contains(stderr, "Warning") || !strings.Contains(stderr, "remote") {
-		t.Errorf("expected warning about fetch without remote, got stderr: %s", stderr)
+	// "never" should work
+	_, _, err = executeCommand("config", "--global", "fetch_interval", "never")
+	if err != nil {
+		t.Fatalf("config set 'never' failed: %v", err)
+	}
+
+	// "0" should work (always fetch)
+	_, _, err = executeCommand("config", "--global", "fetch_interval", "0")
+	if err != nil {
+		t.Fatalf("config set '0' failed: %v", err)
+	}
+
+	// Invalid duration should fail
+	_, _, err = executeCommand("config", "--global", "fetch_interval", "invalid")
+	if err == nil {
+		t.Error("expected error for invalid duration, got none")
 	}
 }
 

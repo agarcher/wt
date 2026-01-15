@@ -146,8 +146,8 @@ func runDelete(cmd *cobra.Command, args []string) error {
 			// Remote comparison mode - fetch first if enabled
 			remoteRef := remote + "/" + comparisonBranch
 
-			if userCfg.GetFetchForRepo(repoRoot) {
-				fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+			fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+			if fetchInterval != userconfig.FetchIntervalNever {
 				lastFetch, _ := git.GetLastFetchTime(repoRoot, remote)
 				timeSinceLastFetch := time.Since(lastFetch)
 
