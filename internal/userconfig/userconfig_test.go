@@ -254,11 +254,11 @@ func TestLoadNonexistent(t *testing.T) {
 
 func TestValidKeys(t *testing.T) {
 	keys := ValidKeys()
-	if len(keys) != 2 {
-		t.Errorf("expected 2 valid keys, got %d", len(keys))
+	if len(keys) != 3 {
+		t.Errorf("expected 3 valid keys, got %d", len(keys))
 	}
 
-	expected := map[string]bool{"remote": true, "fetch": true}
+	expected := map[string]bool{"remote": true, "fetch": true, "fetch_interval": true}
 	for _, key := range keys {
 		if !expected[key] {
 			t.Errorf("unexpected key: %s", key)

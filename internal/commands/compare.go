@@ -60,8 +60,17 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 
 		// Fetch first if enabled (only makes sense with a remote)
 		if userCfg.GetFetchForRepo(repoRoot) {
-			if err := fetchWithSpinner(cmd, repoRoot, remote); err != nil {
-				cmd.PrintErrf("Warning: failed to fetch from %s: %v\n", remote, err)
+			fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+			lastFetch, _ := git.GetLastFetchTime(repoRoot, remote)
+			timeSinceLastFetch := time.Since(lastFetch)
+
+			if fetchInterval > 0 && timeSinceLastFetch < fetchInterval {
+				// Skip fetch - within interval
+				cmd.PrintErrf("Skipping fetch (last fetch %s ago)\n", formatDuration(timeSinceLastFetch))
+			} else {
+				if err := fetchWithSpinner(cmd, repoRoot, remote); err != nil {
+					cmd.PrintErrf("Warning: failed to fetch from %s: %v\n", remote, err)
+				}
 			}
 		}
 
@@ -125,6 +134,9 @@ func fetchWithSpinner(cmd *cobra.Command, repoRoot, remote string) error {
 		return err
 	}
 
+	// Record successful fetch time
+	_ = git.SetLastFetchTime(repoRoot, remote)
+
 	// Update remote HEAD
 	_ = git.UpdateRemoteHead(repoRoot, remote)
 
@@ -132,4 +144,20 @@ func fetchWithSpinner(cmd *cobra.Command, repoRoot, remote string) error {
 	_, _ = fmt.Fprintf(out, "Fetched from %s\n", remote)
 
 	return nil
+}
+
+// formatDuration formats a duration in a human-readable way
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	if minutes == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
