@@ -18,7 +18,7 @@ const (
 
 // RepoConfig holds per-repository user settings
 type RepoConfig struct {
-	Remote        string  `yaml:"remote,omitempty"`
+	Remote        *string `yaml:"remote,omitempty"`         // pointer to distinguish unset from explicit empty
 	FetchInterval *string `yaml:"fetch_interval,omitempty"` // pointer to distinguish unset from empty
 }
 
@@ -135,10 +135,10 @@ func Save(cfg *UserConfig) error {
 }
 
 // GetRemoteForRepo returns the effective remote for a given repo path
-// Returns per-repo override if set, otherwise global default
+// Returns per-repo override if set (including explicit empty), otherwise global default
 func (c *UserConfig) GetRemoteForRepo(repoPath string) string {
-	if repoConfig, ok := c.Repos[repoPath]; ok && repoConfig.Remote != "" {
-		return repoConfig.Remote
+	if repoConfig, ok := c.Repos[repoPath]; ok && repoConfig.Remote != nil {
+		return *repoConfig.Remote
 	}
 	return c.Remote
 }
@@ -206,7 +206,7 @@ func (c *UserConfig) SetForRepo(repoPath, key, value string) error {
 
 	switch key {
 	case "remote":
-		repoConfig.Remote = value
+		repoConfig.Remote = &value
 	case "fetch_interval":
 		repoConfig.FetchInterval = &value
 	default:
@@ -230,7 +230,7 @@ func (c *UserConfig) UnsetForRepo(repoPath, key string) error {
 
 	switch key {
 	case "remote":
-		repoConfig.Remote = ""
+		repoConfig.Remote = nil
 	case "fetch_interval":
 		repoConfig.FetchInterval = nil
 	default:
@@ -238,7 +238,7 @@ func (c *UserConfig) UnsetForRepo(repoPath, key string) error {
 	}
 
 	// If repo config is now empty, remove it entirely
-	if repoConfig.Remote == "" && repoConfig.FetchInterval == nil {
+	if repoConfig.Remote == nil && repoConfig.FetchInterval == nil {
 		delete(c.Repos, repoPath)
 	} else {
 		c.Repos[repoPath] = repoConfig
@@ -272,8 +272,8 @@ func (c *UserConfig) GetForRepo(repoPath, key string) (string, bool) {
 
 	switch key {
 	case "remote":
-		if repoConfig.Remote != "" {
-			return repoConfig.Remote, true
+		if repoConfig.Remote != nil {
+			return *repoConfig.Remote, true
 		}
 	case "fetch_interval":
 		if repoConfig.FetchInterval != nil {

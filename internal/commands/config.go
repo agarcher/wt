@@ -103,8 +103,12 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 
 	// Print per-repo values
 	for repoPath, repoConfig := range cfg.Repos {
-		if repoConfig.Remote != "" {
-			_, _ = fmt.Fprintf(out, "repos.%s.remote = %s\n", repoPath, repoConfig.Remote)
+		if repoConfig.Remote != nil {
+			remoteVal := *repoConfig.Remote
+			if remoteVal == "" {
+				remoteVal = "\"\"" // Display empty explicitly
+			}
+			_, _ = fmt.Fprintf(out, "repos.%s.remote = %s\n", repoPath, remoteVal)
 		}
 		if repoConfig.FetchInterval != nil {
 			_, _ = fmt.Fprintf(out, "repos.%s.fetch_interval = %s\n", repoPath, *repoConfig.FetchInterval)
@@ -131,8 +135,12 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		fetchInterval := cfg.GetFetchIntervalForRepo(repoRoot)
 
 		// Determine source of remote
-		if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.Remote != "" {
-			_, _ = fmt.Fprintf(out, "remote = %-20s %s (repos.%s)\n", remote, configPath, repoRoot)
+		if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.Remote != nil {
+			remoteDisplay := remote
+			if remoteDisplay == "" {
+				remoteDisplay = "\"\""
+			}
+			_, _ = fmt.Fprintf(out, "remote = %-20s %s (repos.%s)\n", remoteDisplay, configPath, repoRoot)
 		} else if cfg.Remote != "" {
 			_, _ = fmt.Fprintf(out, "remote = %-20s %s (global)\n", remote, configPath)
 		} else {

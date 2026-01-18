@@ -21,10 +21,13 @@ func TestDefaultUserConfig(t *testing.T) {
 }
 
 func TestGetRemoteForRepo(t *testing.T) {
+	upstream := "upstream"
+	empty := ""
 	cfg := &UserConfig{
 		Remote: "origin",
 		Repos: map[string]RepoConfig{
-			"/path/to/repo1": {Remote: "upstream"},
+			"/path/to/repo1": {Remote: &upstream},
+			"/path/to/repo2": {Remote: &empty}, // explicit empty override
 		},
 	}
 
@@ -34,7 +37,8 @@ func TestGetRemoteForRepo(t *testing.T) {
 		want     string
 	}{
 		{"uses per-repo override", "/path/to/repo1", "upstream"},
-		{"falls back to global", "/path/to/repo2", "origin"},
+		{"explicit empty override", "/path/to/repo2", ""},
+		{"falls back to global", "/path/to/repo3", "origin"},
 	}
 
 	for _, tt := range tests {
@@ -76,8 +80,8 @@ func TestSetForRepo(t *testing.T) {
 	if err := cfg.SetForRepo(repoPath, "remote", "upstream"); err != nil {
 		t.Errorf("SetForRepo failed: %v", err)
 	}
-	if cfg.Repos[repoPath].Remote != "upstream" {
-		t.Errorf("expected remote to be 'upstream', got %q", cfg.Repos[repoPath].Remote)
+	if cfg.Repos[repoPath].Remote == nil || *cfg.Repos[repoPath].Remote != "upstream" {
+		t.Errorf("expected remote to be 'upstream'")
 	}
 
 	if err := cfg.SetForRepo(repoPath, "fetch_interval", "10m"); err != nil {
@@ -86,13 +90,24 @@ func TestSetForRepo(t *testing.T) {
 	if cfg.Repos[repoPath].FetchInterval == nil || *cfg.Repos[repoPath].FetchInterval != "10m" {
 		t.Errorf("expected fetch_interval to be '10m'")
 	}
+
+	// Test setting remote to empty string explicitly
+	if err := cfg.SetForRepo(repoPath, "remote", ""); err != nil {
+		t.Errorf("SetForRepo failed: %v", err)
+	}
+	if cfg.Repos[repoPath].Remote == nil {
+		t.Errorf("expected remote to be set (not nil)")
+	} else if *cfg.Repos[repoPath].Remote != "" {
+		t.Errorf("expected remote to be empty string, got %q", *cfg.Repos[repoPath].Remote)
+	}
 }
 
 func TestUnsetForRepo(t *testing.T) {
 	intervalVal := "10m"
+	remoteVal := "upstream"
 	cfg := &UserConfig{
 		Repos: map[string]RepoConfig{
-			"/path/to/repo": {Remote: "upstream", FetchInterval: &intervalVal},
+			"/path/to/repo": {Remote: &remoteVal, FetchInterval: &intervalVal},
 		},
 	}
 
@@ -100,8 +115,8 @@ func TestUnsetForRepo(t *testing.T) {
 	if err := cfg.UnsetForRepo("/path/to/repo", "remote"); err != nil {
 		t.Errorf("UnsetForRepo failed: %v", err)
 	}
-	if cfg.Repos["/path/to/repo"].Remote != "" {
-		t.Errorf("expected remote to be empty")
+	if cfg.Repos["/path/to/repo"].Remote != nil {
+		t.Errorf("expected remote to be nil")
 	}
 	if cfg.Repos["/path/to/repo"].FetchInterval == nil {
 		t.Errorf("expected fetch_interval to still be set")
@@ -164,7 +179,8 @@ func TestLoadAndSave(t *testing.T) {
 	cfg := DefaultUserConfig()
 	cfg.Remote = "origin"
 	cfg.FetchInterval = "10m"
-	cfg.Repos["/path/to/repo"] = RepoConfig{Remote: "upstream"}
+	upstream := "upstream"
+	cfg.Repos["/path/to/repo"] = RepoConfig{Remote: &upstream}
 
 	if err := Save(cfg); err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -188,8 +204,8 @@ func TestLoadAndSave(t *testing.T) {
 	if loaded.FetchInterval != "10m" {
 		t.Errorf("expected fetch_interval '10m', got %q", loaded.FetchInterval)
 	}
-	if loaded.Repos["/path/to/repo"].Remote != "upstream" {
-		t.Errorf("expected per-repo remote 'upstream', got %q", loaded.Repos["/path/to/repo"].Remote)
+	if loaded.Repos["/path/to/repo"].Remote == nil || *loaded.Repos["/path/to/repo"].Remote != "upstream" {
+		t.Errorf("expected per-repo remote 'upstream'")
 	}
 }
 

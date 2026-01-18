@@ -38,7 +38,10 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 	}
 
 	// Load user configuration
-	userCfg, _ := userconfig.Load()
+	userCfg, err := userconfig.Load()
+	if err != nil {
+		cmd.PrintErrf("Warning: %v (using defaults)\n", err)
+	}
 
 	// Determine remote for this repo (empty = local comparison)
 	remote := userCfg.GetRemoteForRepo(repoRoot)

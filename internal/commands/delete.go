@@ -126,7 +126,10 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 		// Check for unmerged commits (commits ahead of comparison ref)
 		// Load user configuration for fetch/remote settings
-		userCfg, _ := userconfig.Load()
+		userCfg, err := userconfig.Load()
+		if err != nil {
+			cmd.PrintErrf("Warning: %v (using defaults)\n", err)
+		}
 
 		// Determine remote for this repo (empty = local comparison)
 		remote := userCfg.GetRemoteForRepo(repoRoot)
