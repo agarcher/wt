@@ -18,25 +18,9 @@ type CompareSetup struct {
 	ComparisonRef string
 }
 
-// SetupCompare initializes the comparison context for list/cleanup commands.
-// It prints the repo root, determines the comparison ref, and fetches if configured.
-func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
-	// Find the main repository root
-	repoRoot, err := config.GetMainRepoRoot()
-	if err != nil {
-		return nil, fmt.Errorf("not in a git repository: %w", err)
-	}
-
-	// Print repo root
-	cmd.Printf("Repository: %s\n", repoRoot)
-
-	// Load repo configuration
-	cfg, err := config.Load(repoRoot)
-	if err != nil {
-		// Use defaults if no config file
-		cfg = config.DefaultConfig()
-	}
-
+// resolveComparisonRef determines the comparison ref for a repo and optionally fetches from the remote.
+// This is the core logic shared by SetupCompare and delete.
+func resolveComparisonRef(cmd *cobra.Command, repoRoot string, cfg *config.Config) (string, error) {
 	// Load user configuration
 	userCfg, err := userconfig.Load()
 	if err != nil {
@@ -87,6 +71,33 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 	} else {
 		// Local comparison mode (default) - no network, no fetch
 		comparisonRef = branch // e.g., "main"
+	}
+
+	return comparisonRef, nil
+}
+
+// SetupCompare initializes the comparison context for list/cleanup commands.
+// It prints the repo root, determines the comparison ref, and fetches if configured.
+func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
+	// Find the main repository root
+	repoRoot, err := config.GetMainRepoRoot()
+	if err != nil {
+		return nil, fmt.Errorf("not in a git repository: %w", err)
+	}
+
+	// Print repo root
+	cmd.Printf("Repository: %s\n", repoRoot)
+
+	// Load repo configuration
+	cfg, err := config.Load(repoRoot)
+	if err != nil {
+		// Use defaults if no config file
+		cfg = config.DefaultConfig()
+	}
+
+	comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Print comparison ref

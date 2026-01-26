@@ -6,12 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/git"
 	"github.com/agarcher/wt/internal/hooks"
-	"github.com/agarcher/wt/internal/userconfig"
 	"github.com/spf13/cobra"
 )
 
@@ -125,56 +123,9 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 
 		// Check for unmerged commits (commits ahead of comparison ref)
-		// Load user configuration for fetch/remote settings
-		userCfg, err := userconfig.Load()
+		comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg)
 		if err != nil {
-			cmd.PrintErrf("Warning: %v (using defaults)\n", err)
-		}
-
-		// Determine remote for this repo (empty = local comparison)
-		remote := userCfg.GetRemoteForRepo(repoRoot)
-
-		// Determine comparison branch from repo config, or auto-detect
-		comparisonBranch := cfg.DefaultBranch
-		if comparisonBranch == "" {
-			comparisonBranch, _ = git.GetDefaultBranch(repoRoot)
-			if comparisonBranch == "" {
-				comparisonBranch = "main" // Ultimate fallback
-			}
-		}
-
-		// Build comparison ref based on whether remote is configured
-		var comparisonRef string
-		if remote != "" {
-			// Remote comparison mode - fetch first if enabled
-			remoteRef := remote + "/" + comparisonBranch
-
-			fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
-			if fetchInterval != userconfig.FetchIntervalNever {
-				lastFetch, _ := git.GetLastFetchTime(repoRoot, remote)
-				timeSinceLastFetch := time.Since(lastFetch)
-
-				if fetchInterval > 0 && timeSinceLastFetch < fetchInterval {
-					// Skip fetch - within interval
-					cmd.PrintErrf("Skipping fetch (last fetch %s ago)\n", formatDuration(timeSinceLastFetch))
-				} else {
-					if err := git.FetchRemoteQuiet(repoRoot, remote); err != nil {
-						cmd.PrintErrf("Warning: failed to fetch from %s: %v\n", remote, err)
-					} else {
-						_ = git.SetLastFetchTime(repoRoot, remote)
-					}
-				}
-			}
-
-			// Verify the remote ref exists, fall back to local if not
-			if git.RefExists(repoRoot, remoteRef) {
-				comparisonRef = remoteRef
-			} else {
-				comparisonRef = comparisonBranch
-			}
-		} else {
-			// Local comparison mode (default)
-			comparisonRef = comparisonBranch
+			return err
 		}
 
 		ahead, _, _ := git.GetCommitsAheadBehind(repoRoot, worktreePath, comparisonRef)
