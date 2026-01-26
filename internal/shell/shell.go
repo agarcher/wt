@@ -22,6 +22,7 @@ _wt() {
         'create:Create a new worktree'
         'delete:Delete a worktree'
         'cd:Change to a worktree directory'
+        'info:Show detailed information about a worktree'
         'list:List all worktrees'
         'cleanup:Clean up merged worktrees'
         'exit:Return to the main repository'
@@ -35,36 +36,57 @@ _wt() {
       ;;
     args)
       case $words[2] in
-        cd)
-          # Complete worktree names
-          local repo_root worktree_dir worktrees
-          repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
-          if [[ -n "$repo_root" ]]; then
-            # Check if in worktree and get main repo
-            if [[ -f "$repo_root/.git" ]]; then
-              local gitdir=$(grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
-              if [[ -n "$gitdir" ]]; then
-                repo_root=$(dirname $(dirname $(dirname "$gitdir")))
-              fi
+        cd|info)
+          # Only complete worktree names for the first argument
+          local has_name=false
+          for ((i=3; i < $CURRENT; i++)); do
+            if [[ ${words[$i]} != -* ]]; then
+              has_name=true
+              break
             fi
-            if [[ -f "$repo_root/.wt.yaml" ]]; then
-              worktree_dir=$(grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
-              [[ -z "$worktree_dir" ]] && worktree_dir="worktrees"
-              if [[ -d "$repo_root/$worktree_dir" ]]; then
-                worktrees=(${(f)"$(ls -1 "$repo_root/$worktree_dir" 2>/dev/null)"})
-                _describe 'worktree' worktrees
+          done
+          if ! $has_name; then
+            local repo_root worktree_dir worktrees
+            repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+            if [[ -n "$repo_root" ]]; then
+              # Check if in worktree and get main repo
+              if [[ -f "$repo_root/.git" ]]; then
+                local gitdir=$(grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
+                if [[ -n "$gitdir" ]]; then
+                  repo_root=$(dirname $(dirname $(dirname "$gitdir")))
+                fi
+              fi
+              if [[ -f "$repo_root/.wt.yaml" ]]; then
+                worktree_dir=$(grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
+                [[ -z "$worktree_dir" ]] && worktree_dir="worktrees"
+                if [[ -d "$repo_root/$worktree_dir" ]]; then
+                  worktrees=(${(f)"$(ls -1 "$repo_root/$worktree_dir" 2>/dev/null)"})
+                  _describe 'worktree' worktrees
+                fi
               fi
             fi
           fi
           ;;
         delete)
-          _arguments \
-            '1: :->worktree' \
-            '-f[Force deletion]' \
-            '--force[Force deletion]' \
-            '-k[Keep the associated branch]' \
-            '--keep-branch[Keep the associated branch]'
-          if [[ $state == worktree ]]; then
+          # Check if a worktree name (non-flag argument) has already been provided
+          local has_name=false
+          for ((i=3; i < $CURRENT; i++)); do
+            if [[ ${words[$i]} != -* ]]; then
+              has_name=true
+              break
+            fi
+          done
+          if $has_name || [[ ${words[$CURRENT]} == -* ]]; then
+            # Worktree name already provided or typing a flag - complete flags
+            local -a flags=(
+              '-f:Force deletion'
+              '--force:Force deletion'
+              '-k:Keep the associated branch'
+              '--keep-branch:Keep the associated branch'
+            )
+            _describe 'flag' flags
+          else
+            # Complete worktree names
             local repo_root worktree_dir worktrees
             repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
             if [[ -n "$repo_root" ]]; then
@@ -226,7 +248,7 @@ _wt_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
   }
 
-  local commands="create delete cd list cleanup exit init root completion version help"
+  local commands="create delete cd info list cleanup exit init root completion version help"
 
   if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=($(compgen -W "$commands" -- "$cur"))
@@ -235,7 +257,7 @@ _wt_completions() {
 
   local cmd="${COMP_WORDS[1]}"
   case "$cmd" in
-    cd)
+    cd|info)
       # Complete worktree names
       local repo_root worktree_dir worktrees
       repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -411,6 +433,7 @@ complete -c wt -n "__fish_use_subcommand" -a "create" -d "Create a new worktree"
 complete -c wt -n "__fish_use_subcommand" -a "delete" -d "Delete a worktree"
 complete -c wt -n "__fish_use_subcommand" -a "cd" -d "Change to a worktree directory"
 complete -c wt -n "__fish_use_subcommand" -a "list" -d "List all worktrees"
+complete -c wt -n "__fish_use_subcommand" -a "info" -d "Show detailed information about a worktree"
 complete -c wt -n "__fish_use_subcommand" -a "cleanup" -d "Clean up merged worktrees"
 complete -c wt -n "__fish_use_subcommand" -a "exit" -d "Return to the main repository"
 complete -c wt -n "__fish_use_subcommand" -a "init" -d "Generate shell integration script"
@@ -440,8 +463,8 @@ function __wt_worktrees
   end
 end
 
-# Worktree name completion for cd and delete
-complete -c wt -n "__fish_seen_subcommand_from cd delete" -a "(__wt_worktrees)"
+# Worktree name completion for cd, delete, and info
+complete -c wt -n "__fish_seen_subcommand_from cd delete info" -a "(__wt_worktrees)"
 
 # Branch completion for create --branch
 # Try --format first (Git 2.13+), fall back to parsing git branch output
