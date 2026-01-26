@@ -441,6 +441,34 @@ _wt_completion()
     noun_aliases=()
 }
 
+_wt_config()
+{
+    last_command="wt_config"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--global")
+    local_nonpersistent_flags+=("--global")
+    flags+=("--list")
+    local_nonpersistent_flags+=("--list")
+    flags+=("--show-origin")
+    local_nonpersistent_flags+=("--show-origin")
+    flags+=("--unset")
+    local_nonpersistent_flags+=("--unset")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _wt_create()
 {
     last_command="wt_create"
@@ -523,6 +551,27 @@ _wt_exit()
 _wt_help()
 {
     last_command="wt_help"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    has_completion_function=1
+    noun_aliases=()
+}
+
+_wt_info()
+{
+    last_command="wt_info"
 
     command_aliases=()
 
@@ -638,10 +687,12 @@ _wt_root_command()
     commands+=("cd")
     commands+=("cleanup")
     commands+=("completion")
+    commands+=("config")
     commands+=("create")
     commands+=("delete")
     commands+=("exit")
     commands+=("help")
+    commands+=("info")
     commands+=("init")
     commands+=("list")
     if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then

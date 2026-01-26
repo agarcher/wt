@@ -419,7 +419,7 @@ func TestCompletionSubcommands(t *testing.T) {
 	// Test that all expected subcommands are registered on the root command
 	expectedCommands := []string{
 		"cd", "cleanup", "completion", "create", "delete",
-		"exit", "init", "list", "root", "version",
+		"exit", "info", "init", "list", "root", "version",
 	}
 
 	registeredCommands := make(map[string]bool)
