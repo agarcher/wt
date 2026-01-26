@@ -152,6 +152,23 @@ LLM coding agents work best with full access to build, test, and run your projec
 
 Each agent gets a fully isolated environment where it can build, test, and iterate without affecting others. See the [Vite port demo](examples/vite-port-demo/) for a working example.
 
+## Best Practices
+
+**Compare against remote:** By default, `wt` compares branches locally. Set `remote` to compare against the remote tracking branch instead, so merge status reflects what's actually been pushed:
+
+```bash
+wt config --global remote origin
+```
+
+**Tune fetch frequency:** When `remote` is set, `wt` fetches at most every 5 minutes. Adjust with `fetch_interval`:
+
+```bash
+wt config --global fetch_interval 10m   # Less frequent
+wt config --global fetch_interval 0     # Always fetch
+```
+
+See [User Configuration](docs/USAGE.md#user-configuration) for all options.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
