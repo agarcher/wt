@@ -114,6 +114,11 @@ func Save(repoRoot string, cfg *Config) error {
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
+	// Set file permissions to 0644 (CreateTemp uses 0600)
+	if err := os.Chmod(tempPath, 0644); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
+	}
+
 	// Atomic rename
 	if err := os.Rename(tempPath, configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)

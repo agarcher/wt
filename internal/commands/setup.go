@@ -157,20 +157,16 @@ func savePersonalConfig(cmd *cobra.Command, repoRoot, worktreeDir, branchPattern
 		cfg = userconfig.DefaultUserConfig()
 	}
 
-	if err := cfg.SetForRepo(repoRoot, "worktree_dir", worktreeDir); err != nil {
-		return err
-	}
-	if err := cfg.SetForRepo(repoRoot, "branch_pattern", branchPattern); err != nil {
-		return err
-	}
-	if err := cfg.SetForRepo(repoRoot, "default_branch", defaultBranch); err != nil {
-		return err
-	}
-	if err := cfg.SetForRepo(repoRoot, "remote", remote); err != nil {
-		return err
-	}
-	if err := cfg.SetForRepo(repoRoot, "fetch_interval", fetchInterval); err != nil {
-		return err
+	for _, kv := range [][2]string{
+		{"worktree_dir", worktreeDir},
+		{"branch_pattern", branchPattern},
+		{"default_branch", defaultBranch},
+		{"remote", remote},
+		{"fetch_interval", fetchInterval},
+	} {
+		if err := cfg.SetForRepo(repoRoot, kv[0], kv[1]); err != nil {
+			return fmt.Errorf("failed to set %s: %w", kv[0], err)
+		}
 	}
 
 	if err := userconfig.Save(cfg); err != nil {

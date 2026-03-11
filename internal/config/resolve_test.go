@@ -8,20 +8,33 @@ import (
 	"github.com/agarcher/wt/internal/userconfig"
 )
 
-func TestResolveDefault(t *testing.T) {
-	// Create a temp directory that acts as a repo root (no .wt.yaml)
+// setupResolveTest creates a temp dir (acting as repo root) and an isolated
+// HOME directory so userconfig doesn't interfere. Cleanup is automatic via
+// t.Cleanup.
+func setupResolveTest(t *testing.T) string {
+	t.Helper()
+
 	tmpDir, err := os.MkdirTemp("", "wt-resolve-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
-	// Override HOME so userconfig doesn't find any personal config
+	homeDir, err := os.MkdirTemp("", "wt-resolve-home")
+	if err != nil {
+		t.Fatalf("failed to create home dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(homeDir) })
+
 	oldHome := os.Getenv("HOME")
-	homeDir, _ := os.MkdirTemp("", "wt-resolve-home")
-	defer func() { _ = os.RemoveAll(homeDir) }()
 	_ = os.Setenv("HOME", homeDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+
+	return tmpDir
+}
+
+func TestResolveDefault(t *testing.T) {
+	tmpDir := setupResolveTest(t)
 
 	resolved, err := Resolve(tmpDir)
 	if err != nil {
@@ -44,18 +57,7 @@ func TestResolveDefault(t *testing.T) {
 }
 
 func TestResolveWithWtYaml(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "wt-resolve-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	// Override HOME
-	oldHome := os.Getenv("HOME")
-	homeDir, _ := os.MkdirTemp("", "wt-resolve-home")
-	defer func() { _ = os.RemoveAll(homeDir) }()
-	_ = os.Setenv("HOME", homeDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	tmpDir := setupResolveTest(t)
 
 	// Create .wt.yaml
 	wtYaml := []byte("version: 1\nworktree_dir: custom-worktrees\nbranch_pattern: feat/{name}\ndefault_branch: develop\n")
@@ -83,18 +85,7 @@ func TestResolveWithWtYaml(t *testing.T) {
 }
 
 func TestResolvePersonalOverridesWtYaml(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "wt-resolve-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	// Override HOME
-	oldHome := os.Getenv("HOME")
-	homeDir, _ := os.MkdirTemp("", "wt-resolve-home")
-	defer func() { _ = os.RemoveAll(homeDir) }()
-	_ = os.Setenv("HOME", homeDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	tmpDir := setupResolveTest(t)
 
 	// Create .wt.yaml
 	wtYaml := []byte("version: 1\nworktree_dir: team-worktrees\nbranch_pattern: feat/{name}\ndefault_branch: develop\n")
@@ -134,19 +125,10 @@ func TestResolvePersonalOverridesWtYaml(t *testing.T) {
 }
 
 func TestResolveCorruptUserConfig(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "wt-resolve-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	oldHome := os.Getenv("HOME")
-	homeDir, _ := os.MkdirTemp("", "wt-resolve-home")
-	defer func() { _ = os.RemoveAll(homeDir) }()
-	_ = os.Setenv("HOME", homeDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	tmpDir := setupResolveTest(t)
 
 	// Write corrupt user config
+	homeDir := os.Getenv("HOME")
 	configDir := filepath.Join(homeDir, ".config", "wt")
 	_ = os.MkdirAll(configDir, 0755)
 	_ = os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("{{invalid yaml"), 0644)
@@ -170,17 +152,7 @@ func TestResolveCorruptUserConfig(t *testing.T) {
 }
 
 func TestResolvePartialPersonalOverrides(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "wt-resolve-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	oldHome := os.Getenv("HOME")
-	homeDir, _ := os.MkdirTemp("", "wt-resolve-home")
-	defer func() { _ = os.RemoveAll(homeDir) }()
-	_ = os.Setenv("HOME", homeDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	tmpDir := setupResolveTest(t)
 
 	// Create .wt.yaml with all three fields
 	wtYaml := []byte("version: 1\nworktree_dir: team-dir\nbranch_pattern: feat/{name}\ndefault_branch: develop\n")
@@ -215,17 +187,7 @@ func TestResolvePartialPersonalOverrides(t *testing.T) {
 }
 
 func TestResolvePreservesHooksFromWtYaml(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "wt-resolve-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	oldHome := os.Getenv("HOME")
-	homeDir, _ := os.MkdirTemp("", "wt-resolve-home")
-	defer func() { _ = os.RemoveAll(homeDir) }()
-	_ = os.Setenv("HOME", homeDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	tmpDir := setupResolveTest(t)
 
 	// Create .wt.yaml with hooks
 	wtYaml := []byte(`version: 1

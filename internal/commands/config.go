@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -172,38 +173,17 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		resolved, resolveErr := config.Resolve(repoRoot)
 		if resolveErr == nil {
 			repoConfig := cfg.Repos[repoRoot]
-			hasRepoFile := config.Exists(repoRoot)
+			fromRepo := resolved.Source >= config.SourceRepoFile
 
-			// worktree_dir
-			if repoConfig.WorktreeDir != nil {
-				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s %s (repos.%s)\n", *repoConfig.WorktreeDir, configPath, repoRoot)
-			} else if hasRepoFile && resolved.Source >= config.SourceRepoFile {
-				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s .wt.yaml (repo)\n", resolved.WorktreeDir)
-			} else {
-				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s (default)\n", resolved.WorktreeDir)
-			}
+			printOriginField(out, "worktree_dir", 16, repoConfig.WorktreeDir, resolved.WorktreeDir, fromRepo, configPath, repoRoot)
+			printOriginField(out, "branch_pattern", 14, repoConfig.BranchPattern, resolved.BranchPattern, fromRepo, configPath, repoRoot)
 
-			// branch_pattern
-			if repoConfig.BranchPattern != nil {
-				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s %s (repos.%s)\n", *repoConfig.BranchPattern, configPath, repoRoot)
-			} else if hasRepoFile && resolved.Source >= config.SourceRepoFile {
-				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s .wt.yaml (repo)\n", resolved.BranchPattern)
-			} else {
-				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s (default)\n", resolved.BranchPattern)
+			// default_branch has special handling for empty value
+			defaultDisplay := resolved.DefaultBranch
+			if defaultDisplay == "" {
+				defaultDisplay = "(auto-detected)"
 			}
-
-			// default_branch
-			if repoConfig.DefaultBranch != nil {
-				_, _ = fmt.Fprintf(out, "default_branch = %-14s %s (repos.%s)\n", *repoConfig.DefaultBranch, configPath, repoRoot)
-			} else if hasRepoFile && resolved.DefaultBranch != "" {
-				_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", resolved.DefaultBranch)
-			} else {
-				display := resolved.DefaultBranch
-				if display == "" {
-					display = "(auto-detected)"
-				}
-				_, _ = fmt.Fprintf(out, "default_branch = %-14s (default)\n", display)
-			}
+			printOriginField(out, "default_branch", 14, repoConfig.DefaultBranch, defaultDisplay, fromRepo && resolved.DefaultBranch != "", configPath, repoRoot)
 		}
 	} else {
 		// Not in a repo, just show global values
@@ -337,6 +317,21 @@ func unsetConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) err
 	}
 
 	return nil
+}
+
+// printOriginField prints a config key with its value and source origin.
+// personalPtr is the user's per-repo override (nil if unset).
+// resolvedValue is the effective value from config resolution.
+// fromRepo indicates whether .wt.yaml contributed the value.
+func printOriginField(out io.Writer, key string, width int, personalPtr *string, resolvedValue string, fromRepo bool, configPath, repoRoot string) {
+	format := fmt.Sprintf("%%s = %%-%ds", width)
+	if personalPtr != nil {
+		_, _ = fmt.Fprintf(out, format+" %s (repos.%s)\n", key, *personalPtr, configPath, repoRoot)
+	} else if fromRepo {
+		_, _ = fmt.Fprintf(out, format+" .wt.yaml (repo)\n", key, resolvedValue)
+	} else {
+		_, _ = fmt.Fprintf(out, format+" (default)\n", key, resolvedValue)
+	}
 }
 
 func isValidKey(key string) bool {
