@@ -80,7 +80,8 @@ func Load(repoRoot string) (*Config, error) {
 	return cfg, nil
 }
 
-// Save writes the configuration to .wt.yaml in the given repository root
+// Save writes the configuration to .wt.yaml in the given repository root.
+// Uses atomic write (temp file + rename) to prevent corruption if interrupted.
 func Save(repoRoot string, cfg *Config) error {
 	configPath := filepath.Join(repoRoot, ConfigFileName)
 
@@ -89,10 +90,36 @@ func Save(repoRoot string, cfg *Config) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	// Write to temp file first for atomic save
+	tempFile, err := os.CreateTemp(repoRoot, ".wt.yaml.tmp.*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tempPath := tempFile.Name()
+
+	// Clean up temp file on any error
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	if _, err := tempFile.Write(data); err != nil {
+		_ = tempFile.Close()
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tempPath, configPath); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	success = true
 	return nil
 }
 

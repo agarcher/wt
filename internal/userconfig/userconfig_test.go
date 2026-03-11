@@ -305,6 +305,92 @@ func TestSetForRepoNewKeys(t *testing.T) {
 	}
 }
 
+func TestGetForRepoUnsetKeys(t *testing.T) {
+	cfg := DefaultUserConfig()
+
+	// No repo entry at all
+	if v, ok := cfg.GetForRepo("/nonexistent", "worktree_dir"); ok {
+		t.Errorf("expected not ok for nonexistent repo, got %q", v)
+	}
+
+	// Repo exists but key not set
+	remote := "origin"
+	cfg.Repos["/path/to/repo"] = RepoConfig{Remote: &remote}
+	if v, ok := cfg.GetForRepo("/path/to/repo", "worktree_dir"); ok {
+		t.Errorf("expected not ok for unset worktree_dir, got %q", v)
+	}
+	if v, ok := cfg.GetForRepo("/path/to/repo", "branch_pattern"); ok {
+		t.Errorf("expected not ok for unset branch_pattern, got %q", v)
+	}
+	if v, ok := cfg.GetForRepo("/path/to/repo", "default_branch"); ok {
+		t.Errorf("expected not ok for unset default_branch, got %q", v)
+	}
+}
+
+func TestYAMLRoundtrip(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "wt-userconfig-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	oldHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	// Create config with all field types
+	cfg := DefaultUserConfig()
+	cfg.Remote = "origin"
+	cfg.FetchInterval = "10m"
+
+	remote := "upstream"
+	fetchInterval := "1h"
+	worktreeDir := "../my-trees"
+	branchPattern := "user/{name}"
+	defaultBranch := "develop"
+	cfg.Repos["/path/to/repo"] = RepoConfig{
+		Remote:        &remote,
+		FetchInterval: &fetchInterval,
+		WorktreeDir:   &worktreeDir,
+		BranchPattern: &branchPattern,
+		DefaultBranch: &defaultBranch,
+	}
+
+	if err := Save(cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Verify all fields roundtripped
+	if loaded.Remote != "origin" {
+		t.Errorf("remote: got %q, want 'origin'", loaded.Remote)
+	}
+	if loaded.FetchInterval != "10m" {
+		t.Errorf("fetch_interval: got %q, want '10m'", loaded.FetchInterval)
+	}
+
+	repo := loaded.Repos["/path/to/repo"]
+	if repo.Remote == nil || *repo.Remote != "upstream" {
+		t.Error("repo remote didn't roundtrip")
+	}
+	if repo.FetchInterval == nil || *repo.FetchInterval != "1h" {
+		t.Error("repo fetch_interval didn't roundtrip")
+	}
+	if repo.WorktreeDir == nil || *repo.WorktreeDir != "../my-trees" {
+		t.Error("repo worktree_dir didn't roundtrip")
+	}
+	if repo.BranchPattern == nil || *repo.BranchPattern != "user/{name}" {
+		t.Error("repo branch_pattern didn't roundtrip")
+	}
+	if repo.DefaultBranch == nil || *repo.DefaultBranch != "develop" {
+		t.Error("repo default_branch didn't roundtrip")
+	}
+}
+
 func TestUnsetForRepoNewKeys(t *testing.T) {
 	wtDir := "../wt"
 	branchPattern := "feat/{name}"

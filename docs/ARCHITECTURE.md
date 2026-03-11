@@ -77,6 +77,12 @@ Version is set at build time via ldflags:
 
 This separation is important because the shell wrapper parses stdout to extract paths for `cd` commands.
 
+**Shell-wrapped commands** (`create`, `cd`, `exit`): The shell wrapper captures stdout to extract the path for `cd`. These commands must write the target path to stdout and all messages to stderr. Any extraneous stdout output will break the shell wrapper.
+
+**Non-wrapped commands** (`list`, `info`, `cleanup`, `config`, `root`, `version`): stdout is displayed directly to the user. These commands write their primary output to stdout via `fmt.Fprintln(cmd.OutOrStdout(), ...)`.
+
+**Interactive commands** (`setup`, `delete` with confirmation): These write prompts to stdout via `fmt.Printf()`. This is safe because the shell wrapper only captures stdout for specific subcommands (`create`, `cd`, `exit`) — interactive commands fall through to the `*` case, which runs the binary directly without capturing output.
+
 ## Design Decisions
 
 ### Why Go?

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/git"
@@ -133,6 +134,16 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Validate inputs
+	if strings.TrimSpace(worktreeDir) == "" {
+		return fmt.Errorf("worktree directory cannot be empty")
+	}
+	if fetchInterval != "never" {
+		if _, err := time.ParseDuration(fetchInterval); err != nil {
+			return fmt.Errorf("invalid fetch interval %q: must be a valid duration (e.g., '5m', '1h', '0') or 'never'", fetchInterval)
+		}
+	}
+
 	// Save configuration
 	if personal {
 		return savePersonalConfig(cmd, repoRoot, worktreeDir, branchPattern, defaultBranchVal, remote, fetchInterval)
@@ -193,15 +204,15 @@ func saveSharedConfig(cmd *cobra.Command, repoRoot, worktreeDir, branchPattern, 
 		userCfg = userconfig.DefaultUserConfig()
 	}
 
-	if remote != "" {
-		_ = userCfg.SetForRepo(repoRoot, "remote", remote)
+	if err := userCfg.SetForRepo(repoRoot, "remote", remote); err != nil {
+		return fmt.Errorf("failed to set remote: %w", err)
 	}
-	if fetchInterval != userconfig.DefaultFetchInterval {
-		_ = userCfg.SetForRepo(repoRoot, "fetch_interval", fetchInterval)
+	if err := userCfg.SetForRepo(repoRoot, "fetch_interval", fetchInterval); err != nil {
+		return fmt.Errorf("failed to set fetch_interval: %w", err)
 	}
 
 	if err := userconfig.Save(userCfg); err != nil {
-		cmd.Printf("Warning: failed to save user config: %v\n", err)
+		return fmt.Errorf("failed to save user config: %w", err)
 	}
 
 	cmd.Printf("\nConfiguration saved to %s\n", filepath.Join(repoRoot, config.ConfigFileName))

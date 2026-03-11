@@ -23,6 +23,8 @@ func resetFlags() {
 	configUnset = false
 	configList = false
 	configShowOrigin = false
+	setupPersonal = false
+	setupShared = false
 }
 
 // setupTestRepo creates a temporary git repository with .wt.yaml for testing

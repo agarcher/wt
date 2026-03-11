@@ -171,35 +171,38 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		// Show worktree settings with their source
 		resolved, resolveErr := config.Resolve(repoRoot)
 		if resolveErr == nil {
+			repoConfig := cfg.Repos[repoRoot]
+			hasRepoFile := config.Exists(repoRoot)
+
 			// worktree_dir
-			if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.WorktreeDir != nil {
+			if repoConfig.WorktreeDir != nil {
 				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s %s (repos.%s)\n", *repoConfig.WorktreeDir, configPath, repoRoot)
-			} else if config.Exists(repoRoot) {
-				if repoCfg, err := config.Load(repoRoot); err == nil {
-					_, _ = fmt.Fprintf(out, "worktree_dir = %-16s .wt.yaml (repo)\n", repoCfg.WorktreeDir)
-				}
+			} else if hasRepoFile && resolved.Source >= config.SourceRepoFile {
+				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s .wt.yaml (repo)\n", resolved.WorktreeDir)
 			} else {
 				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s (default)\n", resolved.WorktreeDir)
 			}
 
 			// branch_pattern
-			if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.BranchPattern != nil {
+			if repoConfig.BranchPattern != nil {
 				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s %s (repos.%s)\n", *repoConfig.BranchPattern, configPath, repoRoot)
-			} else if config.Exists(repoRoot) {
-				if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.BranchPattern != "" {
-					_, _ = fmt.Fprintf(out, "branch_pattern = %-14s .wt.yaml (repo)\n", repoCfg.BranchPattern)
-				}
+			} else if hasRepoFile && resolved.Source >= config.SourceRepoFile {
+				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s .wt.yaml (repo)\n", resolved.BranchPattern)
 			} else {
 				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s (default)\n", resolved.BranchPattern)
 			}
 
 			// default_branch
-			if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.DefaultBranch != nil {
+			if repoConfig.DefaultBranch != nil {
 				_, _ = fmt.Fprintf(out, "default_branch = %-14s %s (repos.%s)\n", *repoConfig.DefaultBranch, configPath, repoRoot)
-			} else if config.Exists(repoRoot) {
-				if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.DefaultBranch != "" {
-					_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", repoCfg.DefaultBranch)
+			} else if hasRepoFile && resolved.DefaultBranch != "" {
+				_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", resolved.DefaultBranch)
+			} else {
+				display := resolved.DefaultBranch
+				if display == "" {
+					display = "(auto-detected)"
 				}
+				_, _ = fmt.Fprintf(out, "default_branch = %-14s (default)\n", display)
 			}
 		}
 	} else {
