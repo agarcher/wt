@@ -35,6 +35,9 @@ User settings are stored in ~/.config/wt/config.yaml
 Configuration keys:
   remote          Remote to compare against (empty = local comparison)
   fetch_interval  Fetch interval: "5m", "1h", "0" (always), or "never" (disable)
+  worktree_dir    Directory for worktrees (per-repo only)
+  branch_pattern  Branch naming pattern, e.g. "{name}" (per-repo only)
+  default_branch  Default branch to compare against (per-repo only)
 
 Examples:
   wt config --list                       # List all settings
@@ -113,6 +116,15 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 		if repoConfig.FetchInterval != nil {
 			_, _ = fmt.Fprintf(out, "repos.%s.fetch_interval = %s\n", repoPath, *repoConfig.FetchInterval)
 		}
+		if repoConfig.WorktreeDir != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.worktree_dir = %s\n", repoPath, *repoConfig.WorktreeDir)
+		}
+		if repoConfig.BranchPattern != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.branch_pattern = %s\n", repoPath, *repoConfig.BranchPattern)
+		}
+		if repoConfig.DefaultBranch != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.default_branch = %s\n", repoPath, *repoConfig.DefaultBranch)
+		}
 	}
 
 	return nil
@@ -156,9 +168,39 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 			_, _ = fmt.Fprintf(out, "fetch_interval = %-14s (default)\n", fetchInterval)
 		}
 
-		// Show repo's default_branch if set
-		if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.DefaultBranch != "" {
-			_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", repoCfg.DefaultBranch)
+		// Show worktree settings with their source
+		resolved, resolveErr := config.Resolve(repoRoot)
+		if resolveErr == nil {
+			// worktree_dir
+			if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.WorktreeDir != nil {
+				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s %s (repos.%s)\n", *repoConfig.WorktreeDir, configPath, repoRoot)
+			} else if config.Exists(repoRoot) {
+				if repoCfg, err := config.Load(repoRoot); err == nil {
+					_, _ = fmt.Fprintf(out, "worktree_dir = %-16s .wt.yaml (repo)\n", repoCfg.WorktreeDir)
+				}
+			} else {
+				_, _ = fmt.Fprintf(out, "worktree_dir = %-16s (default)\n", resolved.WorktreeDir)
+			}
+
+			// branch_pattern
+			if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.BranchPattern != nil {
+				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s %s (repos.%s)\n", *repoConfig.BranchPattern, configPath, repoRoot)
+			} else if config.Exists(repoRoot) {
+				if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.BranchPattern != "" {
+					_, _ = fmt.Fprintf(out, "branch_pattern = %-14s .wt.yaml (repo)\n", repoCfg.BranchPattern)
+				}
+			} else {
+				_, _ = fmt.Fprintf(out, "branch_pattern = %-14s (default)\n", resolved.BranchPattern)
+			}
+
+			// default_branch
+			if repoConfig, ok := cfg.Repos[repoRoot]; ok && repoConfig.DefaultBranch != nil {
+				_, _ = fmt.Fprintf(out, "default_branch = %-14s %s (repos.%s)\n", *repoConfig.DefaultBranch, configPath, repoRoot)
+			} else if config.Exists(repoRoot) {
+				if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.DefaultBranch != "" {
+					_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", repoCfg.DefaultBranch)
+				}
+			}
 		}
 	} else {
 		// Not in a repo, just show global values
@@ -198,6 +240,24 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetRemoteForRepo(repoRoot))
 		case "fetch_interval":
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchIntervalForRepo(repoRoot))
+		case "worktree_dir", "branch_pattern", "default_branch":
+			if v, ok := cfg.GetForRepo(repoRoot, key); ok {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), v)
+			} else {
+				// Fall back to resolved config
+				resolved, err := config.Resolve(repoRoot)
+				if err != nil {
+					return err
+				}
+				switch key {
+				case "worktree_dir":
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.WorktreeDir)
+				case "branch_pattern":
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.BranchPattern)
+				case "default_branch":
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.DefaultBranch)
+				}
+			}
 		}
 	}
 

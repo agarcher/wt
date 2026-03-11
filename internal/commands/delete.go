@@ -53,7 +53,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(repoRoot)
+	cfg, err := config.Resolve(repoRoot)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -64,7 +64,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 	if len(args) > 0 {
 		name = args[0]
-		worktreePath = filepath.Join(repoRoot, cfg.WorktreeDir, name)
+		worktreePath = filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir, name))
 	} else {
 		// Auto-detect from current directory
 		cwd, err := os.Getwd()
@@ -72,7 +72,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		worktreesDir := filepath.Join(repoRoot, cfg.WorktreeDir)
+		worktreesDir := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir))
 		if !strings.HasPrefix(cwd, worktreesDir) {
 			return fmt.Errorf("not in a worktree (specify name or cd into a worktree)")
 		}
@@ -123,7 +123,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		}
 
 		// Check for unmerged commits (commits ahead of comparison ref)
-		comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg)
+		comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg.Config)
 		if err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	inDeletedWorktree := strings.HasPrefix(cwd, worktreePath)
 
 	// Run pre-delete hooks
-	if err := hooks.RunPreDelete(cfg, env); err != nil {
+	if err := hooks.RunPreDelete(cfg.Config, env); err != nil {
 		if !deleteForce {
 			return fmt.Errorf("pre-delete hook failed: %w", err)
 		}
@@ -174,7 +174,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run post-delete hooks
-	if err := hooks.RunPostDelete(cfg, env); err != nil {
+	if err := hooks.RunPostDelete(cfg.Config, env); err != nil {
 		cmd.Printf("Warning: post-delete hook failed: %v\n", err)
 	}
 

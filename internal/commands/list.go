@@ -67,7 +67,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Get current directory to highlight current worktree
 	cwd, _ := os.Getwd()
-	worktreesDir := filepath.Join(setup.RepoRoot, setup.Config.WorktreeDir)
+	worktreesDir := filepath.Clean(filepath.Join(setup.RepoRoot, setup.Config.WorktreeDir))
 
 	// Collect managed worktrees (excluding main repo)
 	var managedWorktrees []worktreeInfo

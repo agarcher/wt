@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,22 @@ func Load(repoRoot string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// Save writes the configuration to .wt.yaml in the given repository root
+func Save(repoRoot string, cfg *Config) error {
+	configPath := filepath.Join(repoRoot, ConfigFileName)
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
 }
 
 // Exists checks if a config file exists in the given repository root

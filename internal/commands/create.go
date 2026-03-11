@@ -32,7 +32,7 @@ By default, a new branch with the same name will be created.
 Use --branch to checkout an existing branch instead.
 
 The worktree will be created in the directory specified by worktree_dir
-in your .wt.yaml configuration (default: worktrees/).
+in your configuration (personal config, .wt.yaml, or default).
 
 After creation, any post_create hooks defined in .wt.yaml will be executed.`,
 	Args: cobra.ExactArgs(1),
@@ -49,13 +49,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(repoRoot)
+	cfg, err := config.Resolve(repoRoot)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w (is .wt.yaml present?)", err)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Determine the worktree path
-	worktreePath := filepath.Join(repoRoot, cfg.WorktreeDir, name)
+	worktreePath := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir, name))
 
 	// Determine the branch name
 	branchName := createBranch
@@ -74,7 +74,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run pre-create hooks
-	if err := hooks.RunPreCreate(cfg, env); err != nil {
+	if err := hooks.RunPreCreate(cfg.Config, env); err != nil {
 		return fmt.Errorf("pre-create hook failed: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run post-create hooks
-	if err := hooks.RunPostCreate(cfg, env); err != nil {
+	if err := hooks.RunPostCreate(cfg.Config, env); err != nil {
 		cmd.Printf("Warning: post-create hook failed: %v\n", err)
 		// Don't fail the whole operation for post-create hooks
 	}

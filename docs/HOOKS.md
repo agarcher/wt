@@ -6,6 +6,8 @@ Hooks are custom scripts that run at specific points in the worktree lifecycle. 
 
 Hooks are configured in your repository's `.wt.yaml` file and receive standardized environment variables. Each hook type runs at a specific point and has different capabilities.
 
+> **Note:** Hooks are only read from `.wt.yaml` (shared repository config), never from personal user config. This is because hooks reference scripts in the repository that should be consistent for all team members.
+
 **Environment variables available to all hooks:**
 
 | Variable | Description |

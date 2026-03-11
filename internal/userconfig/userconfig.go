@@ -20,6 +20,9 @@ const (
 type RepoConfig struct {
 	Remote        *string `yaml:"remote,omitempty"`         // pointer to distinguish unset from explicit empty
 	FetchInterval *string `yaml:"fetch_interval,omitempty"` // pointer to distinguish unset from empty
+	WorktreeDir   *string `yaml:"worktree_dir,omitempty"`   // personal worktree directory override
+	BranchPattern *string `yaml:"branch_pattern,omitempty"` // personal branch pattern override
+	DefaultBranch *string `yaml:"default_branch,omitempty"` // personal default branch override
 }
 
 // UserConfig holds user-level configuration
@@ -170,8 +173,26 @@ func (c *UserConfig) GetFetchIntervalForRepo(repoPath string) time.Duration {
 	return d
 }
 
+// RepoOnlyKeys returns the list of keys that can only be set per-repo (not globally)
+func RepoOnlyKeys() []string {
+	return []string{"worktree_dir", "branch_pattern", "default_branch"}
+}
+
+// isRepoOnlyKey returns true if the key can only be set per-repo
+func isRepoOnlyKey(key string) bool {
+	for _, k := range RepoOnlyKeys() {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
 // SetGlobal sets a global config value
 func (c *UserConfig) SetGlobal(key, value string) error {
+	if isRepoOnlyKey(key) {
+		return fmt.Errorf("%s can only be set per-repo (omit --global)", key)
+	}
 	switch key {
 	case "remote":
 		c.Remote = value
@@ -185,6 +206,9 @@ func (c *UserConfig) SetGlobal(key, value string) error {
 
 // UnsetGlobal clears a global config value to its default
 func (c *UserConfig) UnsetGlobal(key string) error {
+	if isRepoOnlyKey(key) {
+		return fmt.Errorf("%s can only be set per-repo (omit --global)", key)
+	}
 	switch key {
 	case "remote":
 		c.Remote = ""
@@ -209,6 +233,12 @@ func (c *UserConfig) SetForRepo(repoPath, key, value string) error {
 		repoConfig.Remote = &value
 	case "fetch_interval":
 		repoConfig.FetchInterval = &value
+	case "worktree_dir":
+		repoConfig.WorktreeDir = &value
+	case "branch_pattern":
+		repoConfig.BranchPattern = &value
+	case "default_branch":
+		repoConfig.DefaultBranch = &value
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -233,12 +263,19 @@ func (c *UserConfig) UnsetForRepo(repoPath, key string) error {
 		repoConfig.Remote = nil
 	case "fetch_interval":
 		repoConfig.FetchInterval = nil
+	case "worktree_dir":
+		repoConfig.WorktreeDir = nil
+	case "branch_pattern":
+		repoConfig.BranchPattern = nil
+	case "default_branch":
+		repoConfig.DefaultBranch = nil
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
 
 	// If repo config is now empty, remove it entirely
-	if repoConfig.Remote == nil && repoConfig.FetchInterval == nil {
+	if repoConfig.Remote == nil && repoConfig.FetchInterval == nil &&
+		repoConfig.WorktreeDir == nil && repoConfig.BranchPattern == nil && repoConfig.DefaultBranch == nil {
 		delete(c.Repos, repoPath)
 	} else {
 		c.Repos[repoPath] = repoConfig
@@ -249,6 +286,9 @@ func (c *UserConfig) UnsetForRepo(repoPath, key string) error {
 
 // GetGlobal returns a global config value as a string
 func (c *UserConfig) GetGlobal(key string) (string, error) {
+	if isRepoOnlyKey(key) {
+		return "", fmt.Errorf("%s can only be set per-repo (omit --global)", key)
+	}
 	switch key {
 	case "remote":
 		return c.Remote, nil
@@ -279,6 +319,18 @@ func (c *UserConfig) GetForRepo(repoPath, key string) (string, bool) {
 		if repoConfig.FetchInterval != nil {
 			return *repoConfig.FetchInterval, true
 		}
+	case "worktree_dir":
+		if repoConfig.WorktreeDir != nil {
+			return *repoConfig.WorktreeDir, true
+		}
+	case "branch_pattern":
+		if repoConfig.BranchPattern != nil {
+			return *repoConfig.BranchPattern, true
+		}
+	case "default_branch":
+		if repoConfig.DefaultBranch != nil {
+			return *repoConfig.DefaultBranch, true
+		}
 	}
 
 	return "", false
@@ -286,5 +338,5 @@ func (c *UserConfig) GetForRepo(repoPath, key string) (string, bool) {
 
 // ValidKeys returns the list of valid configuration keys
 func ValidKeys() []string {
-	return []string{"remote", "fetch_interval"}
+	return []string{"remote", "fetch_interval", "worktree_dir", "branch_pattern", "default_branch"}
 }

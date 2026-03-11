@@ -26,6 +26,8 @@ _wt() {
         'list:List all worktrees'
         'cleanup:Clean up merged worktrees'
         'exit:Return to the main repository'
+        'setup:Interactive setup for worktree management'
+        'config:Manage user configuration'
         'init:Generate shell integration script'
         'root:Print the main repository root path'
         'completion:Generate shell completion script'
@@ -46,24 +48,11 @@ _wt() {
             fi
           done
           if ! $has_name; then
-            local repo_root worktree_dir worktrees
-            repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
-            if [[ -n "$repo_root" ]]; then
-              # Check if in worktree and get main repo
-              if [[ -f "$repo_root/.git" ]]; then
-                local gitdir=$(grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
-                if [[ -n "$gitdir" ]]; then
-                  repo_root=$(dirname $(dirname $(dirname "$gitdir")))
-                fi
-              fi
-              if [[ -f "$repo_root/.wt.yaml" ]]; then
-                worktree_dir=$(grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
-                [[ -z "$worktree_dir" ]] && worktree_dir="worktrees"
-                if [[ -d "$repo_root/$worktree_dir" ]]; then
-                  worktrees=(${(f)"$(ls -1 "$repo_root/$worktree_dir" 2>/dev/null)"})
-                  _describe 'worktree' worktrees
-                fi
-              fi
+            # Use cobra's built-in completion
+            local completions
+            completions=(${(f)"$(command wt __complete "$words[2]" -- "$words[$CURRENT]" 2>/dev/null | grep -v '^:')"})
+            if [[ ${#completions[@]} -gt 0 ]]; then
+              _describe 'worktree' completions
             fi
           fi
           ;;
@@ -86,24 +75,11 @@ _wt() {
             )
             _describe 'flag' flags
           else
-            # Complete worktree names
-            local repo_root worktree_dir worktrees
-            repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
-            if [[ -n "$repo_root" ]]; then
-              if [[ -f "$repo_root/.git" ]]; then
-                local gitdir=$(grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
-                if [[ -n "$gitdir" ]]; then
-                  repo_root=$(dirname $(dirname $(dirname "$gitdir")))
-                fi
-              fi
-              if [[ -f "$repo_root/.wt.yaml" ]]; then
-                worktree_dir=$(grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
-                [[ -z "$worktree_dir" ]] && worktree_dir="worktrees"
-                if [[ -d "$repo_root/$worktree_dir" ]]; then
-                  worktrees=(${(f)"$(ls -1 "$repo_root/$worktree_dir" 2>/dev/null)"})
-                  _describe 'worktree' worktrees
-                fi
-              fi
+            # Use cobra's built-in completion
+            local completions
+            completions=(${(f)"$(command wt __complete delete -- "$words[$CURRENT]" 2>/dev/null | grep -v '^:')"})
+            if [[ ${#completions[@]} -gt 0 ]]; then
+              _describe 'worktree' completions
             fi
           fi
           ;;
@@ -117,6 +93,11 @@ _wt() {
             branches=(${(f)"$(git branch --format='%(refname:short)' 2>/dev/null || git branch 2>/dev/null | sed 's/^[* ] //')"})
             _describe 'branch' branches
           fi
+          ;;
+        setup)
+          _arguments \
+            '--personal[Save to personal config]' \
+            '--shared[Save to repository .wt.yaml]'
           ;;
         init|completion)
           local shells=(zsh bash fish)
@@ -136,6 +117,13 @@ _wt() {
             '-v[Show detailed status]' \
             '--verbose[Show detailed status]'
           ;;
+        config)
+          _arguments \
+            '--global[Set/get global configuration]' \
+            '--unset[Remove a per-repo configuration value]' \
+            '--list[List all configuration values]' \
+            '--show-origin[Show where each value comes from]'
+          ;;
       esac
       ;;
   esac
@@ -145,36 +133,12 @@ _wt() {
 compdef _wt wt
 
 wt() {
-  # Check if we're in a git repo with .wt.yaml
+  # Check if we're in a git repo
   local repo_root
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
 
   if [[ -z "$repo_root" ]]; then
-    # Not in a git repo - try to run wt anyway (might be a global command)
-    command wt "$@"
-    return $?
-  fi
-
-  # Check for .wt.yaml in repo root or if we're in a worktree, check main repo
-  local config_found=false
-  if [[ -f "$repo_root/.wt.yaml" ]]; then
-    config_found=true
-  else
-    # Check if this is a worktree and look for config in main repo
-    local git_file="$repo_root/.git"
-    if [[ -f "$git_file" ]]; then
-      local gitdir=$(grep "^gitdir:" "$git_file" | cut -d' ' -f2)
-      if [[ -n "$gitdir" ]]; then
-        local main_repo=$(dirname $(dirname $(dirname "$gitdir")))
-        if [[ -f "$main_repo/.wt.yaml" ]]; then
-          config_found=true
-          repo_root="$main_repo"
-        fi
-      fi
-    fi
-  fi
-
-  if [[ "$config_found" != "true" ]]; then
+    # Not in a git repo - run wt directly (might be a global command)
     command wt "$@"
     return $?
   fi
@@ -248,7 +212,7 @@ _wt_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
   }
 
-  local commands="create delete cd info list cleanup exit init root completion version help"
+  local commands="create delete cd info list cleanup exit setup config init root completion version help"
 
   if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=($(compgen -W "$commands" -- "$cur"))
@@ -258,49 +222,19 @@ _wt_completions() {
   local cmd="${COMP_WORDS[1]}"
   case "$cmd" in
     cd|info)
-      # Complete worktree names
-      local repo_root worktree_dir worktrees
-      repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
-      if [[ -n "$repo_root" ]]; then
-        if [[ -f "$repo_root/.git" ]]; then
-          local gitdir=$(grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
-          if [[ -n "$gitdir" ]]; then
-            repo_root=$(dirname $(dirname $(dirname "$gitdir")))
-          fi
-        fi
-        if [[ -f "$repo_root/.wt.yaml" ]]; then
-          worktree_dir=$(grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
-          [[ -z "$worktree_dir" ]] && worktree_dir="worktrees"
-          if [[ -d "$repo_root/$worktree_dir" ]]; then
-            worktrees=$(ls -1 "$repo_root/$worktree_dir" 2>/dev/null)
-            COMPREPLY=($(compgen -W "$worktrees" -- "$cur"))
-          fi
-        fi
+      # Use cobra's built-in completion
+      local completions
+      completions=$(command wt __complete "$cmd" -- "$cur" 2>/dev/null | grep -v '^:')
+      if [[ -n "$completions" ]]; then
+        COMPREPLY=($(compgen -W "$completions" -- "$cur"))
       fi
       ;;
     delete)
-      # Complete worktree names and flags
-      local repo_root worktree_dir worktrees
-      repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
-      if [[ -n "$repo_root" ]]; then
-        if [[ -f "$repo_root/.git" ]]; then
-          local gitdir=$(grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
-          if [[ -n "$gitdir" ]]; then
-            repo_root=$(dirname $(dirname $(dirname "$gitdir")))
-          fi
-        fi
-        if [[ -f "$repo_root/.wt.yaml" ]]; then
-          worktree_dir=$(grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
-          [[ -z "$worktree_dir" ]] && worktree_dir="worktrees"
-          if [[ -d "$repo_root/$worktree_dir" ]]; then
-            worktrees=$(ls -1 "$repo_root/$worktree_dir" 2>/dev/null)
-            COMPREPLY=($(compgen -W "$worktrees -f --force -k --keep-branch" -- "$cur"))
-          else
-            COMPREPLY=($(compgen -W "-f --force -k --keep-branch" -- "$cur"))
-          fi
-        else
-          COMPREPLY=($(compgen -W "-f --force -k --keep-branch" -- "$cur"))
-        fi
+      # Use cobra's built-in completion for worktree names and flags
+      local completions
+      completions=$(command wt __complete delete -- "$cur" 2>/dev/null | grep -v '^:')
+      if [[ -n "$completions" ]]; then
+        COMPREPLY=($(compgen -W "$completions -f --force -k --keep-branch" -- "$cur"))
       else
         COMPREPLY=($(compgen -W "-f --force -k --keep-branch" -- "$cur"))
       fi
@@ -317,6 +251,9 @@ _wt_completions() {
           ;;
       esac
       ;;
+    setup)
+      COMPREPLY=($(compgen -W "--personal --shared" -- "$cur"))
+      ;;
     init|completion)
       COMPREPLY=($(compgen -W "zsh bash fish" -- "$cur"))
       ;;
@@ -326,6 +263,9 @@ _wt_completions() {
     list)
       COMPREPLY=($(compgen -W "-v --verbose" -- "$cur"))
       ;;
+    config)
+      COMPREPLY=($(compgen -W "--global --unset --list --show-origin remote fetch_interval worktree_dir branch_pattern default_branch" -- "$cur"))
+      ;;
   esac
   return 0
 }
@@ -334,34 +274,11 @@ _wt_completions() {
 complete -F _wt_completions wt
 
 wt() {
-  # Check if we're in a git repo with .wt.yaml
+  # Check if we're in a git repo
   local repo_root
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
 
   if [[ -z "$repo_root" ]]; then
-    command wt "$@"
-    return $?
-  fi
-
-  # Check for .wt.yaml in repo root or if we're in a worktree, check main repo
-  local config_found=false
-  if [[ -f "$repo_root/.wt.yaml" ]]; then
-    config_found=true
-  else
-    local git_file="$repo_root/.git"
-    if [[ -f "$git_file" ]]; then
-      local gitdir=$(grep "^gitdir:" "$git_file" | cut -d' ' -f2)
-      if [[ -n "$gitdir" ]]; then
-        local main_repo=$(dirname $(dirname $(dirname "$gitdir")))
-        if [[ -f "$main_repo/.wt.yaml" ]]; then
-          config_found=true
-          repo_root="$main_repo"
-        fi
-      fi
-    fi
-  fi
-
-  if [[ "$config_found" != "true" ]]; then
     command wt "$@"
     return $?
   fi
@@ -436,31 +353,17 @@ complete -c wt -n "__fish_use_subcommand" -a "list" -d "List all worktrees"
 complete -c wt -n "__fish_use_subcommand" -a "info" -d "Show detailed information about a worktree"
 complete -c wt -n "__fish_use_subcommand" -a "cleanup" -d "Clean up merged worktrees"
 complete -c wt -n "__fish_use_subcommand" -a "exit" -d "Return to the main repository"
+complete -c wt -n "__fish_use_subcommand" -a "setup" -d "Interactive setup for worktree management"
+complete -c wt -n "__fish_use_subcommand" -a "config" -d "Manage user configuration"
 complete -c wt -n "__fish_use_subcommand" -a "init" -d "Generate shell integration script"
 complete -c wt -n "__fish_use_subcommand" -a "root" -d "Print the main repository root path"
 complete -c wt -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion script"
 complete -c wt -n "__fish_use_subcommand" -a "version" -d "Print the version number"
 complete -c wt -n "__fish_use_subcommand" -a "help" -d "Help about any command"
 
-# Helper function to get worktree names
+# Helper function to get worktree names via cobra completions
 function __wt_worktrees
-  set -l repo_root (git rev-parse --show-toplevel 2>/dev/null)
-  if test -z "$repo_root"
-    return
-  end
-  if test -f "$repo_root/.git"
-    set -l gitdir (grep "^gitdir:" "$repo_root/.git" | cut -d' ' -f2)
-    if test -n "$gitdir"
-      set repo_root (dirname (dirname (dirname "$gitdir")))
-    end
-  end
-  if test -f "$repo_root/.wt.yaml"
-    set -l worktree_dir (grep "^worktree_dir:" "$repo_root/.wt.yaml" | cut -d' ' -f2 | tr -d '"' | tr -d "'")
-    test -z "$worktree_dir"; and set worktree_dir "worktrees"
-    if test -d "$repo_root/$worktree_dir"
-      ls -1 "$repo_root/$worktree_dir" 2>/dev/null
-    end
-  end
+  command wt __complete cd -- "" 2>/dev/null | grep -v '^:'
 end
 
 # Worktree name completion for cd, delete, and info
@@ -472,6 +375,10 @@ complete -c wt -n "__fish_seen_subcommand_from create" -s b -l branch -d "Use ex
 
 # Shell completion for init and completion commands
 complete -c wt -n "__fish_seen_subcommand_from init completion" -a "zsh bash fish"
+
+# Flags for setup
+complete -c wt -n "__fish_seen_subcommand_from setup" -l personal -d "Save to personal config"
+complete -c wt -n "__fish_seen_subcommand_from setup" -l shared -d "Save to repository .wt.yaml"
 
 # Flags for delete
 complete -c wt -n "__fish_seen_subcommand_from delete" -s f -l force -d "Force deletion"
@@ -485,34 +392,17 @@ complete -c wt -n "__fish_seen_subcommand_from cleanup" -s k -l keep-branch -d "
 # Flags for list
 complete -c wt -n "__fish_seen_subcommand_from list" -s v -l verbose -d "Show detailed status"
 
+# Flags for config
+complete -c wt -n "__fish_seen_subcommand_from config" -l global -d "Set/get global configuration"
+complete -c wt -n "__fish_seen_subcommand_from config" -l unset -d "Remove a per-repo configuration value"
+complete -c wt -n "__fish_seen_subcommand_from config" -l list -d "List all configuration values"
+complete -c wt -n "__fish_seen_subcommand_from config" -l show-origin -d "Show where each value comes from"
+
 function wt
   # Check if we're in a git repo
   set -l repo_root (git rev-parse --show-toplevel 2>/dev/null)
 
   if test -z "$repo_root"
-    command wt $argv
-    return $status
-  end
-
-  # Check for .wt.yaml
-  set -l config_found false
-  if test -f "$repo_root/.wt.yaml"
-    set config_found true
-  else
-    set -l git_file "$repo_root/.git"
-    if test -f "$git_file"
-      set -l gitdir (grep "^gitdir:" "$git_file" | cut -d' ' -f2)
-      if test -n "$gitdir"
-        set -l main_repo (dirname (dirname (dirname "$gitdir")))
-        if test -f "$main_repo/.wt.yaml"
-          set config_found true
-          set repo_root "$main_repo"
-        end
-      end
-    end
-  end
-
-  if test "$config_found" != "true"
     command wt $argv
     return $status
   end

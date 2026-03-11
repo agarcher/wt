@@ -61,7 +61,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list worktrees: %w", err)
 	}
 
-	worktreesDir := filepath.Join(setup.RepoRoot, setup.Config.WorktreeDir)
+	worktreesDir := filepath.Clean(filepath.Join(setup.RepoRoot, setup.Config.WorktreeDir))
 
 	// Get merged branches cache for efficiency
 	mergedCache, err := git.GetMergedBranches(setup.RepoRoot, setup.ComparisonRef)

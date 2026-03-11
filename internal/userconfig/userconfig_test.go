@@ -238,14 +238,104 @@ func TestLoadNonexistent(t *testing.T) {
 
 func TestValidKeys(t *testing.T) {
 	keys := ValidKeys()
-	if len(keys) != 2 {
-		t.Errorf("expected 2 valid keys, got %d", len(keys))
+	if len(keys) != 5 {
+		t.Errorf("expected 5 valid keys, got %d", len(keys))
 	}
 
-	expected := map[string]bool{"remote": true, "fetch_interval": true}
+	expected := map[string]bool{
+		"remote": true, "fetch_interval": true,
+		"worktree_dir": true, "branch_pattern": true, "default_branch": true,
+	}
 	for _, key := range keys {
 		if !expected[key] {
 			t.Errorf("unexpected key: %s", key)
 		}
+	}
+}
+
+func TestRepoOnlyKeys(t *testing.T) {
+	keys := RepoOnlyKeys()
+	expected := map[string]bool{"worktree_dir": true, "branch_pattern": true, "default_branch": true}
+	for _, key := range keys {
+		if !expected[key] {
+			t.Errorf("unexpected repo-only key: %s", key)
+		}
+	}
+}
+
+func TestSetGlobalRepoOnlyKeys(t *testing.T) {
+	cfg := DefaultUserConfig()
+
+	for _, key := range RepoOnlyKeys() {
+		if err := cfg.SetGlobal(key, "value"); err == nil {
+			t.Errorf("SetGlobal(%q) should return error for repo-only key", key)
+		}
+		if _, err := cfg.GetGlobal(key); err == nil {
+			t.Errorf("GetGlobal(%q) should return error for repo-only key", key)
+		}
+		if err := cfg.UnsetGlobal(key); err == nil {
+			t.Errorf("UnsetGlobal(%q) should return error for repo-only key", key)
+		}
+	}
+}
+
+func TestSetForRepoNewKeys(t *testing.T) {
+	cfg := DefaultUserConfig()
+	repoPath := "/path/to/repo"
+
+	if err := cfg.SetForRepo(repoPath, "worktree_dir", "../my-worktrees"); err != nil {
+		t.Errorf("SetForRepo failed: %v", err)
+	}
+	if v, ok := cfg.GetForRepo(repoPath, "worktree_dir"); !ok || v != "../my-worktrees" {
+		t.Errorf("expected worktree_dir '../my-worktrees', got %q (ok=%v)", v, ok)
+	}
+
+	if err := cfg.SetForRepo(repoPath, "branch_pattern", "user/{name}"); err != nil {
+		t.Errorf("SetForRepo failed: %v", err)
+	}
+	if v, ok := cfg.GetForRepo(repoPath, "branch_pattern"); !ok || v != "user/{name}" {
+		t.Errorf("expected branch_pattern 'user/{name}', got %q (ok=%v)", v, ok)
+	}
+
+	if err := cfg.SetForRepo(repoPath, "default_branch", "develop"); err != nil {
+		t.Errorf("SetForRepo failed: %v", err)
+	}
+	if v, ok := cfg.GetForRepo(repoPath, "default_branch"); !ok || v != "develop" {
+		t.Errorf("expected default_branch 'develop', got %q (ok=%v)", v, ok)
+	}
+}
+
+func TestUnsetForRepoNewKeys(t *testing.T) {
+	wtDir := "../wt"
+	branchPattern := "feat/{name}"
+	defaultBranch := "develop"
+	cfg := &UserConfig{
+		Repos: map[string]RepoConfig{
+			"/path/to/repo": {
+				WorktreeDir:   &wtDir,
+				BranchPattern: &branchPattern,
+				DefaultBranch: &defaultBranch,
+			},
+		},
+	}
+
+	// Unset one at a time
+	if err := cfg.UnsetForRepo("/path/to/repo", "worktree_dir"); err != nil {
+		t.Errorf("UnsetForRepo failed: %v", err)
+	}
+	if _, ok := cfg.Repos["/path/to/repo"]; !ok {
+		t.Fatal("repo entry should still exist after unsetting one field")
+	}
+
+	if err := cfg.UnsetForRepo("/path/to/repo", "branch_pattern"); err != nil {
+		t.Errorf("UnsetForRepo failed: %v", err)
+	}
+
+	// Unsetting the last field should remove the entire entry
+	if err := cfg.UnsetForRepo("/path/to/repo", "default_branch"); err != nil {
+		t.Errorf("UnsetForRepo failed: %v", err)
+	}
+	if _, ok := cfg.Repos["/path/to/repo"]; ok {
+		t.Error("repo entry should be removed when all fields are nil")
 	}
 }
