@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -69,7 +71,7 @@ func Resolve(repoRoot string) *ResolvedConfig {
 		source = SourceRepoFile
 		// Detect which fields were explicitly set in .wt.yaml
 		wtFromRepo, bpFromRepo, dbFromRepo = detectRepoFileFields(repoRoot)
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		// .wt.yaml exists but is corrupt or unreadable
 		warning = fmt.Sprintf("Warning: failed to load %s: %v (using defaults)", ConfigFileName, err)
 	}

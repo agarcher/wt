@@ -2,7 +2,9 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,7 +116,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		if repoCfg.DefaultBranch != "" {
 			existingDefaultBranch = repoCfg.DefaultBranch
 		}
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to load %s: %w", config.ConfigFileName, err)
 	}
 
@@ -277,7 +279,7 @@ func runSharedSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existing
 	cfg := config.DefaultConfig()
 	if existing, err := config.Load(repoRoot); err == nil {
 		cfg = existing
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to load %s: %w", config.ConfigFileName, err)
 	}
 

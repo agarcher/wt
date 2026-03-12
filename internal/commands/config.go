@@ -186,7 +186,12 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 			if defaultDisplay == "" {
 				defaultDisplay = "(auto-detected)"
 			}
-			printOriginField(out, "default_branch", 14, repoConfig.DefaultBranch, defaultDisplay, resolved.DefaultBranchFromRepo, configPath, repoRoot)
+			// If personal override is explicitly empty, show auto-detected value instead
+			personalDB := repoConfig.DefaultBranch
+			if personalDB != nil && *personalDB == "" {
+				personalDB = nil // treat empty personal override as unset for display
+			}
+			printOriginField(out, "default_branch", 14, personalDB, defaultDisplay, resolved.DefaultBranchFromRepo, configPath, repoRoot)
 		}
 	} else {
 		// Not in a repo, just show global values
@@ -227,14 +232,21 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 		case "fetch_interval":
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchIntervalForRepo(repoRoot))
 		case "worktree_dir", "branch_pattern", "default_branch":
+			resolved := config.Resolve(repoRoot)
+			if resolved.Warning != "" {
+				cmd.PrintErrln(resolved.Warning)
+			}
 			if v, ok := cfg.GetForRepo(repoRoot, key); ok {
+				// For default_branch, an empty per-repo value means auto-detect
+				if key == "default_branch" && v == "" {
+					v, _ = git.GetDefaultBranch(repoRoot)
+					if v == "" {
+						v = "main"
+					}
+				}
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), v)
 			} else {
 				// Fall back to resolved config
-				resolved := config.Resolve(repoRoot)
-				if resolved.Warning != "" {
-					cmd.PrintErrln(resolved.Warning)
-				}
 				switch key {
 				case "worktree_dir":
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.WorktreeDir)
@@ -261,6 +273,11 @@ func setConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key, value string
 	// Validate key
 	if !isValidKey(key) {
 		return fmt.Errorf("unknown config key: %s\nValid keys: %s", key, strings.Join(userconfig.ValidKeys(), ", "))
+	}
+
+	// Validate worktree_dir is non-empty
+	if key == "worktree_dir" && strings.TrimSpace(value) == "" {
+		return fmt.Errorf("worktree_dir cannot be empty")
 	}
 
 	// Validate fetch_interval value (must be a valid duration or "never")
