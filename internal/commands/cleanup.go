@@ -131,7 +131,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve link context for PR hyperlinks (checks remote URL + TTY)
-	links := NewLinkContext(setup.RepoRoot)
+	links := NewLinkContext(setup.RepoRoot, cmd.OutOrStdout())
 
 	// Display candidates
 	out := cmd.OutOrStdout()

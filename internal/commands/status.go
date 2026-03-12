@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -23,13 +24,14 @@ type LinkContext struct {
 }
 
 // NewLinkContext creates a LinkContext by resolving the remote URL and checking
-// whether stdout is a terminal. This is the standard way to construct a LinkContext
-// so that callers don't forget either check.
-func NewLinkContext(repoRoot string) LinkContext {
-	return LinkContext{
-		RepoURL: git.GetRemoteURL(repoRoot, "origin"),
-		IsTTY:   term.IsTerminal(int(os.Stdout.Fd())),
+// whether the output writer is a terminal. Pass cmd.OutOrStdout() so the check
+// reflects the actual output sink (not necessarily os.Stdout).
+func NewLinkContext(repoRoot string, out io.Writer) LinkContext {
+	lc := LinkContext{RepoURL: git.GetRemoteURL(repoRoot, "origin")}
+	if f, ok := out.(*os.File); ok {
+		lc.IsTTY = term.IsTerminal(int(f.Fd()))
 	}
+	return lc
 }
 
 // linksEnabled returns true when both a repo URL is available and output is a TTY.
