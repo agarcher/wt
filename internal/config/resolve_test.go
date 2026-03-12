@@ -210,3 +210,32 @@ hooks:
 		t.Errorf("expected worktree_dir '../my-trees', got %q", resolved.WorktreeDir)
 	}
 }
+
+func TestResolveCorruptWtYamlWarns(t *testing.T) {
+	tmpDir := setupResolveTest(t)
+
+	// Write corrupt .wt.yaml
+	_ = os.WriteFile(filepath.Join(tmpDir, ".wt.yaml"), []byte("{{invalid yaml"), 0644)
+
+	resolved := Resolve(tmpDir)
+
+	// Should fall back to defaults
+	if resolved.Source != SourceDefault {
+		t.Errorf("expected SourceDefault, got %d", resolved.Source)
+	}
+
+	// Should set a warning
+	if resolved.Warning == "" {
+		t.Error("expected warning for corrupt .wt.yaml, got empty string")
+	}
+}
+
+func TestResolveNoWarningWhenMissing(t *testing.T) {
+	tmpDir := setupResolveTest(t)
+
+	resolved := Resolve(tmpDir)
+
+	if resolved.Warning != "" {
+		t.Errorf("expected no warning when .wt.yaml is absent, got %q", resolved.Warning)
+	}
+}

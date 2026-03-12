@@ -50,9 +50,16 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// Load configuration
 	cfg := config.Resolve(repoRoot)
+	if cfg.Warning != "" {
+		cmd.PrintErrln(cfg.Warning)
+	}
 
-	// Determine the worktree path
-	worktreePath := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir, name))
+	// Validate and determine the worktree path
+	worktreesDir := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir))
+	worktreePath, err := resolveWorktreePath(worktreesDir, name)
+	if err != nil {
+		return err
+	}
 
 	// Determine the branch name
 	branchName := createBranch

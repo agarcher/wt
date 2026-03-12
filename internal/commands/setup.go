@@ -71,8 +71,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if mode == "1" {
+	switch mode {
+	case "1":
 		return runGlobalSetup(cmd, reader)
+	case "2", "3":
+		// continue below
+	default:
+		return fmt.Errorf("invalid choice %q: expected 1, 2, or 3", mode)
 	}
 
 	// Find the main repository root

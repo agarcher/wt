@@ -54,14 +54,22 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 	// Load configuration
 	cfg := config.Resolve(repoRoot)
+	if cfg.Warning != "" {
+		cmd.PrintErrln(cfg.Warning)
+	}
 
 	// Determine which worktree to delete
 	var name string
 	var worktreePath string
 
+	worktreesDir := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir))
+
 	if len(args) > 0 {
 		name = args[0]
-		worktreePath = filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir, name))
+		worktreePath, err = resolveWorktreePath(worktreesDir, name)
+		if err != nil {
+			return err
+		}
 	} else {
 		// Auto-detect from current directory
 		cwd, err := os.Getwd()
@@ -69,16 +77,11 @@ func runDelete(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		worktreesDir := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir))
-		if !strings.HasPrefix(cwd, worktreesDir) {
+		rel, err := filepath.Rel(worktreesDir, cwd)
+		if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("not in a worktree (specify name or cd into a worktree)")
 		}
 
-		// Extract worktree name from path
-		rel, err := filepath.Rel(worktreesDir, cwd)
-		if err != nil {
-			return fmt.Errorf("failed to determine worktree: %w", err)
-		}
 		parts := strings.Split(rel, string(filepath.Separator))
 		name = parts[0]
 		worktreePath = filepath.Join(worktreesDir, name)

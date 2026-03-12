@@ -486,6 +486,38 @@ func TestCreateDuplicateBranchFails(t *testing.T) {
 	_, _, _ = executeCommand("delete", "feature-x", "--force")
 }
 
+func TestResolveWorktreePath(t *testing.T) {
+	worktreesDir := "/repo/worktrees"
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid name", "feature-x", false},
+		{"parent traversal", "../escape", true},
+		{"nested traversal", "foo/../../escape", true},
+		{"absolute path neutralized by Join", "/tmp/evil", false},
+		{"dot", ".", true},
+		{"dotdot", "..", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := resolveWorktreePath(worktreesDir, tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for name %q, got path %q", tt.input, path)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for name %q: %v", tt.input, err)
+				}
+			}
+		})
+	}
+}
+
 func TestDeleteNonexistent(t *testing.T) {
 	repoRoot, cleanup := setupTestRepo(t)
 	defer cleanup()

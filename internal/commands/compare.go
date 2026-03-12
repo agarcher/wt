@@ -90,6 +90,9 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 
 	// Load repo configuration
 	resolved := config.Resolve(repoRoot)
+	if resolved.Warning != "" {
+		cmd.PrintErrln(resolved.Warning)
+	}
 	cfg := resolved.Config
 
 	comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg)

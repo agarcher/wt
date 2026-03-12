@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/agarcher/wt/internal/config"
+	"github.com/agarcher/wt/internal/git"
 	"github.com/agarcher/wt/internal/userconfig"
 	"github.com/spf13/cobra"
 )
@@ -173,17 +174,17 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		resolved := config.Resolve(repoRoot)
 		{
 			repoConfig := cfg.Repos[repoRoot]
-			fromRepo := resolved.Source >= config.SourceRepoFile
+			hasRepoFile := config.Exists(repoRoot)
 
-			printOriginField(out, "worktree_dir", 16, repoConfig.WorktreeDir, resolved.WorktreeDir, fromRepo, configPath, repoRoot)
-			printOriginField(out, "branch_pattern", 14, repoConfig.BranchPattern, resolved.BranchPattern, fromRepo, configPath, repoRoot)
+			printOriginField(out, "worktree_dir", 16, repoConfig.WorktreeDir, resolved.WorktreeDir, hasRepoFile, configPath, repoRoot)
+			printOriginField(out, "branch_pattern", 14, repoConfig.BranchPattern, resolved.BranchPattern, hasRepoFile, configPath, repoRoot)
 
 			// default_branch has special handling for empty value
 			defaultDisplay := resolved.DefaultBranch
 			if defaultDisplay == "" {
 				defaultDisplay = "(auto-detected)"
 			}
-			printOriginField(out, "default_branch", 14, repoConfig.DefaultBranch, defaultDisplay, fromRepo && resolved.DefaultBranch != "", configPath, repoRoot)
+			printOriginField(out, "default_branch", 14, repoConfig.DefaultBranch, defaultDisplay, hasRepoFile && resolved.DefaultBranch != "", configPath, repoRoot)
 		}
 	} else {
 		// Not in a repo, just show global values
@@ -235,7 +236,14 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 				case "branch_pattern":
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.BranchPattern)
 				case "default_branch":
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.DefaultBranch)
+					branch := resolved.DefaultBranch
+					if branch == "" {
+						branch, _ = git.GetDefaultBranch(repoRoot)
+						if branch == "" {
+							branch = "main"
+						}
+					}
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), branch)
 				}
 			}
 		}

@@ -107,7 +107,7 @@ hooks:
     - script: ./scripts/setup.sh
 ```
 
-Without `.wt.yaml`, `wt` uses sensible defaults (sibling directory `../<repo>-worktrees`, branch pattern `{name}`).
+Without `.wt.yaml`, `wt` uses sensible defaults (sibling directory `../<repo>-worktrees`, branch pattern `{name}`, and an auto-detected default branch for comparisons).
 
 See [Repository Configuration](docs/USAGE.md#repository-configuration) for all options.
 

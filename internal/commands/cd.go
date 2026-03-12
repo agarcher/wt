@@ -41,6 +41,9 @@ func runCd(cmd *cobra.Command, args []string) error {
 
 	// Load configuration
 	cfg := config.Resolve(repoRoot)
+	if cfg.Warning != "" {
+		cmd.PrintErrln(cfg.Warning)
+	}
 
 	// Determine the worktree path
 	worktreePath := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir, name))

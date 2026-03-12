@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/agarcher/wt/internal/userconfig"
@@ -18,7 +20,8 @@ const (
 // ResolvedConfig wraps a Config with its source information
 type ResolvedConfig struct {
 	*Config
-	Source ConfigSource
+	Source  ConfigSource
+	Warning string // Non-empty if .wt.yaml exists but could not be parsed
 }
 
 // Resolve produces a merged config for the given repo root.
@@ -33,9 +36,13 @@ func Resolve(repoRoot string) *ResolvedConfig {
 	source := SourceDefault
 
 	// Layer .wt.yaml on top if present
+	var warning string
 	if repoCfg, err := Load(repoRoot); err == nil {
 		cfg = repoCfg
 		source = SourceRepoFile
+	} else if !os.IsNotExist(err) {
+		// .wt.yaml exists but is corrupt or unreadable
+		warning = fmt.Sprintf("Warning: failed to load %s: %v (using defaults)", ConfigFileName, err)
 	}
 
 	// Compute default worktree dir for repos without .wt.yaml
@@ -48,12 +55,12 @@ func Resolve(repoRoot string) *ResolvedConfig {
 	// Layer user per-repo config on top
 	userCfg, err := userconfig.Load()
 	if err != nil {
-		return &ResolvedConfig{Config: cfg, Source: source}
+		return &ResolvedConfig{Config: cfg, Source: source, Warning: warning}
 	}
 
 	repoConfig, hasRepo := userCfg.Repos[repoRoot]
 	if !hasRepo {
-		return &ResolvedConfig{Config: cfg, Source: source}
+		return &ResolvedConfig{Config: cfg, Source: source, Warning: warning}
 	}
 
 	if repoConfig.WorktreeDir != nil {
@@ -69,5 +76,5 @@ func Resolve(repoRoot string) *ResolvedConfig {
 		source = SourceUserRepo
 	}
 
-	return &ResolvedConfig{Config: cfg, Source: source}
+	return &ResolvedConfig{Config: cfg, Source: source, Warning: warning}
 }

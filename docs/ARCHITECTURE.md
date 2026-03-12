@@ -40,7 +40,8 @@ wt/
 ├── cmd/wt/main.go        # Entry point, delegates to commands.Execute()
 ├── internal/
 │   ├── commands/         # Cobra command implementations
-│   ├── config/           # .wt.yaml configuration loading and parsing
+│   ├── config/           # .wt.yaml loading, parsing, and config resolution
+│   ├── userconfig/       # ~/.config/wt/config.yaml user preferences
 │   ├── git/              # Git worktree operations wrapper
 │   ├── hooks/            # Lifecycle hook execution engine
 │   └── shell/            # Shell integration generators (zsh/bash/fish)
@@ -104,3 +105,13 @@ This separation is important because the shell wrapper parses stdout to extract 
 - Each repo can have different needs (port schemes, custom hooks)
 - No namespace pollution when not in a configured repo
 - Teams can version control their `.wt.yaml`
+
+### Configuration Layering
+
+Configuration is resolved in layers (later wins):
+
+1. **Defaults** — built-in values (`worktree_dir: worktrees`, `branch_pattern: {name}`)
+2. **`.wt.yaml`** (if present) — shared repo config for the team. Only source of hooks and index settings.
+3. **User config** (`~/.config/wt/config.yaml`) — personal per-repo overrides for `worktree_dir`, `branch_pattern`, `default_branch`, plus global/per-repo `remote` and `fetch_interval`.
+
+This is implemented in `internal/config/resolve.go` (`Resolve()`) and `internal/userconfig/`.
