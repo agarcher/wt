@@ -1,13 +1,26 @@
 package commands
 
 import (
+	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/agarcher/wt/internal/config"
 	"github.com/agarcher/wt/internal/git"
 	"github.com/spf13/cobra"
 )
+
+// resolveWorktreePath validates a worktree name and returns the full path.
+// Rejects names that would escape the worktrees directory (e.g., "../foo", absolute paths).
+func resolveWorktreePath(worktreesDir, name string) (string, error) {
+	worktreePath := filepath.Clean(filepath.Join(worktreesDir, name))
+	rel, err := filepath.Rel(worktreesDir, worktreePath)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid worktree name %q", name)
+	}
+	return worktreePath, nil
+}
 
 // completeWorktreeNames returns a completion function that provides worktree names
 func completeWorktreeNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -21,10 +34,8 @@ func completeWorktreeNames(cmd *cobra.Command, args []string, toComplete string)
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	cfg, err := config.Load(repoRoot)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
+	resolved := config.Resolve(repoRoot)
+	cfg := resolved.Config
 
 	worktrees, err := git.ListWorktrees(repoRoot)
 	if err != nil {

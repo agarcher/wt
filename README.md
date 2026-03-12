@@ -59,22 +59,17 @@ Then add shell integration as shown above.
 
 ## Quick Start
 
-1. Create a `.wt.yaml` file in your repository root:
-
-```yaml
-version: 1
-worktree_dir: worktrees
-```
-
-2. Create and use worktrees:
+`wt` works out of the box in any git repository — no configuration file required.
 
 ```bash
-wt create feature-x      # Create and cd into worktrees/feature-x
+wt create feature-x      # Create and cd into a worktree
 wt list                   # List all worktrees
 wt cd feature-x           # Switch to a worktree
 wt exit                   # Return to main repo
 wt delete feature-x       # Delete worktree and branch
 ```
+
+**Optional:** Run `wt setup` to customize settings — choose global defaults, personal per-repo overrides, or shared team config via `.wt.yaml`.
 
 ## Commands
 
@@ -87,6 +82,7 @@ wt delete feature-x       # Delete worktree and branch
 | `wt cd <name>` | Change to a worktree directory | [docs](docs/USAGE.md#wt-cd) |
 | `wt exit` | Return to main repository | [docs](docs/USAGE.md#wt-exit) |
 | `wt cleanup` | Remove worktrees with merged branches | [docs](docs/USAGE.md#wt-cleanup) |
+| `wt setup` | Interactive setup for worktree management | [docs](docs/USAGE.md#wt-setup) |
 | `wt config` | Manage user configuration | [docs](docs/USAGE.md#wt-config) |
 | `wt init <shell>` | Generate shell integration | [docs](docs/USAGE.md#wt-init) |
 | `wt root` | Print main repository path | [docs](docs/USAGE.md#wt-root) |
@@ -96,9 +92,9 @@ See the [Usage Guide](docs/USAGE.md) for detailed command documentation.
 
 ## Configuration
 
-### Repository Configuration
+### Repository Configuration (optional)
 
-Each repository is configured via `.wt.yaml` at the repository root:
+Shared team settings can be stored in `.wt.yaml` at the repository root:
 
 ```yaml
 version: 1
@@ -111,16 +107,21 @@ hooks:
     - script: ./scripts/setup.sh
 ```
 
+Without `.wt.yaml`, `wt` uses sensible defaults (sibling directory `../<repo>-worktrees`, branch pattern `{name}`, and an auto-detected default branch for comparisons).
+
 See [Repository Configuration](docs/USAGE.md#repository-configuration) for all options.
 
 ### User Configuration
 
-Global settings are stored in `~/.config/wt/config.yaml`:
+Personal settings are stored in `~/.config/wt/config.yaml`. Global settings and per-repo overrides:
 
 ```bash
 wt config --global remote origin      # Compare against remote
 wt config --global fetch_interval 5m  # Fetch throttling
+wt config worktree_dir ../my-trees    # Per-repo worktree directory
 ```
+
+Personal per-repo settings for `worktree_dir`, `branch_pattern`, and `default_branch` override `.wt.yaml` values.
 
 See [User Configuration](docs/USAGE.md#user-configuration) for details.
 

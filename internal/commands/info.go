@@ -55,7 +55,7 @@ func runInfo(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		worktreesDir := filepath.Join(setup.RepoRoot, setup.Config.WorktreeDir)
+		worktreesDir := filepath.Clean(filepath.Join(setup.RepoRoot, setup.Config.WorktreeDir))
 		if !strings.HasPrefix(cwd, worktreesDir) {
 			return fmt.Errorf("not in a worktree (specify name or cd into a worktree)")
 		}

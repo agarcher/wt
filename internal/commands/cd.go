@@ -40,13 +40,17 @@ func runCd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(repoRoot)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+	cfg := config.Resolve(repoRoot)
+	if cfg.Warning != "" {
+		cmd.PrintErrln(cfg.Warning)
 	}
 
-	// Determine the worktree path
-	worktreePath := filepath.Join(repoRoot, cfg.WorktreeDir, name)
+	// Validate and determine the worktree path
+	worktreesDir := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir))
+	worktreePath, err := resolveWorktreePath(worktreesDir, name)
+	if err != nil {
+		return err
+	}
 
 	// Check if worktree exists
 	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {

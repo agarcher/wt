@@ -2,10 +2,12 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	"github.com/agarcher/wt/internal/config"
+	"github.com/agarcher/wt/internal/git"
 	"github.com/agarcher/wt/internal/userconfig"
 	"github.com/spf13/cobra"
 )
@@ -35,6 +37,9 @@ User settings are stored in ~/.config/wt/config.yaml
 Configuration keys:
   remote          Remote to compare against (empty = local comparison)
   fetch_interval  Fetch interval: "5m", "1h", "0" (always), or "never" (disable)
+  worktree_dir    Directory for worktrees (per-repo only)
+  branch_pattern  Branch naming pattern, e.g. "{name}" (per-repo only)
+  default_branch  Default branch to compare against (per-repo only)
 
 Examples:
   wt config --list                       # List all settings
@@ -113,6 +118,15 @@ func printConfigList(cmd *cobra.Command, cfg *userconfig.UserConfig) error {
 		if repoConfig.FetchInterval != nil {
 			_, _ = fmt.Fprintf(out, "repos.%s.fetch_interval = %s\n", repoPath, *repoConfig.FetchInterval)
 		}
+		if repoConfig.WorktreeDir != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.worktree_dir = %s\n", repoPath, *repoConfig.WorktreeDir)
+		}
+		if repoConfig.BranchPattern != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.branch_pattern = %s\n", repoPath, *repoConfig.BranchPattern)
+		}
+		if repoConfig.DefaultBranch != nil {
+			_, _ = fmt.Fprintf(out, "repos.%s.default_branch = %s\n", repoPath, *repoConfig.DefaultBranch)
+		}
 	}
 
 	return nil
@@ -156,9 +170,28 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 			_, _ = fmt.Fprintf(out, "fetch_interval = %-14s (default)\n", fetchInterval)
 		}
 
-		// Show repo's default_branch if set
-		if repoCfg, err := config.Load(repoRoot); err == nil && repoCfg.DefaultBranch != "" {
-			_, _ = fmt.Fprintf(out, "default_branch = %-14s .wt.yaml (repo)\n", repoCfg.DefaultBranch)
+		// Show worktree settings with their source
+		resolved := config.Resolve(repoRoot)
+		if resolved.Warning != "" {
+			cmd.PrintErrln(resolved.Warning)
+		}
+		{
+			repoConfig := cfg.Repos[repoRoot]
+
+			printOriginField(out, "worktree_dir", 16, repoConfig.WorktreeDir, resolved.WorktreeDir, resolved.WorktreeDirFromRepo, configPath, repoRoot)
+			printOriginField(out, "branch_pattern", 14, repoConfig.BranchPattern, resolved.BranchPattern, resolved.BranchPatternFromRepo, configPath, repoRoot)
+
+			// default_branch has special handling for empty value
+			defaultDisplay := resolved.DefaultBranch
+			if defaultDisplay == "" {
+				defaultDisplay = "(auto-detected)"
+			}
+			// If personal override is explicitly empty, show auto-detected value instead
+			personalDB := repoConfig.DefaultBranch
+			if personalDB != nil && *personalDB == "" {
+				personalDB = nil // treat empty personal override as unset for display
+			}
+			printOriginField(out, "default_branch", 14, personalDB, defaultDisplay, resolved.DefaultBranchFromRepo, configPath, repoRoot)
 		}
 	} else {
 		// Not in a repo, just show global values
@@ -198,6 +231,38 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetRemoteForRepo(repoRoot))
 		case "fetch_interval":
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cfg.GetFetchIntervalForRepo(repoRoot))
+		case "worktree_dir", "branch_pattern", "default_branch":
+			resolved := config.Resolve(repoRoot)
+			if resolved.Warning != "" {
+				cmd.PrintErrln(resolved.Warning)
+			}
+			if v, ok := cfg.GetForRepo(repoRoot, key); ok {
+				// For default_branch, an empty per-repo value means auto-detect
+				if key == "default_branch" && v == "" {
+					v, _ = git.GetDefaultBranch(repoRoot)
+					if v == "" {
+						v = "main"
+					}
+				}
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), v)
+			} else {
+				// Fall back to resolved config
+				switch key {
+				case "worktree_dir":
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.WorktreeDir)
+				case "branch_pattern":
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.BranchPattern)
+				case "default_branch":
+					branch := resolved.DefaultBranch
+					if branch == "" {
+						branch, _ = git.GetDefaultBranch(repoRoot)
+						if branch == "" {
+							branch = "main"
+						}
+					}
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), branch)
+				}
+			}
 		}
 	}
 
@@ -208,6 +273,11 @@ func setConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key, value string
 	// Validate key
 	if !isValidKey(key) {
 		return fmt.Errorf("unknown config key: %s\nValid keys: %s", key, strings.Join(userconfig.ValidKeys(), ", "))
+	}
+
+	// Validate worktree_dir is non-empty
+	if key == "worktree_dir" && strings.TrimSpace(value) == "" {
+		return fmt.Errorf("worktree_dir cannot be empty")
 	}
 
 	// Validate fetch_interval value (must be a valid duration or "never")
@@ -274,6 +344,21 @@ func unsetConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) err
 	}
 
 	return nil
+}
+
+// printOriginField prints a config key with its value and source origin.
+// personalPtr is the user's per-repo override (nil if unset).
+// resolvedValue is the effective value from config resolution.
+// fromRepo indicates whether .wt.yaml contributed the value.
+func printOriginField(out io.Writer, key string, width int, personalPtr *string, resolvedValue string, fromRepo bool, configPath, repoRoot string) {
+	format := fmt.Sprintf("%%s = %%-%ds", width)
+	if personalPtr != nil {
+		_, _ = fmt.Fprintf(out, format+" %s (repos.%s)\n", key, *personalPtr, configPath, repoRoot)
+	} else if fromRepo {
+		_, _ = fmt.Fprintf(out, format+" .wt.yaml (repo)\n", key, resolvedValue)
+	} else {
+		_, _ = fmt.Fprintf(out, format+" (default)\n", key, resolvedValue)
+	}
 }
 
 func isValidKey(key string) bool {

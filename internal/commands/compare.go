@@ -89,11 +89,11 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 	cmd.Printf("Repository: %s\n", repoRoot)
 
 	// Load repo configuration
-	cfg, err := config.Load(repoRoot)
-	if err != nil {
-		// Use defaults if no config file
-		cfg = config.DefaultConfig()
+	resolved := config.Resolve(repoRoot)
+	if resolved.Warning != "" {
+		cmd.PrintErrln(resolved.Warning)
 	}
+	cfg := resolved.Config
 
 	comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg)
 	if err != nil {

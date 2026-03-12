@@ -23,6 +23,20 @@ func resetFlags() {
 	configUnset = false
 	configList = false
 	configShowOrigin = false
+	setupPersonal = false
+	setupShared = false
+	setupGlobal = false
+
+	// Reset Changed state on setup flags to avoid cobra mutual exclusivity false positives
+	if f := setupCmd.Flags().Lookup("personal"); f != nil {
+		f.Changed = false
+	}
+	if f := setupCmd.Flags().Lookup("shared"); f != nil {
+		f.Changed = false
+	}
+	if f := setupCmd.Flags().Lookup("global"); f != nil {
+		f.Changed = false
+	}
 }
 
 // setupTestRepo creates a temporary git repository with .wt.yaml for testing
@@ -470,6 +484,38 @@ func TestCreateDuplicateBranchFails(t *testing.T) {
 
 	// Cleanup
 	_, _, _ = executeCommand("delete", "feature-x", "--force")
+}
+
+func TestResolveWorktreePath(t *testing.T) {
+	worktreesDir := "/repo/worktrees"
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid name", "feature-x", false},
+		{"parent traversal", "../escape", true},
+		{"nested traversal", "foo/../../escape", true},
+		{"absolute path neutralized by Join", "/tmp/evil", false},
+		{"dot", ".", true},
+		{"dotdot", "..", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := resolveWorktreePath(worktreesDir, tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for name %q, got path %q", tt.input, path)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for name %q: %v", tt.input, err)
+				}
+			}
+		})
+	}
 }
 
 func TestDeleteNonexistent(t *testing.T) {

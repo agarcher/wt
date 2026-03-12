@@ -33,11 +33,6 @@ func runExit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a git repository: %w", err)
 	}
 
-	// Check that config exists (to confirm this is a wt-enabled repo)
-	if !config.Exists(repoRoot) {
-		return fmt.Errorf("not in a wt-enabled repository (no .wt.yaml found)")
-	}
-
 	// Output the path to stdout (shell wrapper will handle the actual cd)
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), repoRoot)
 	return nil

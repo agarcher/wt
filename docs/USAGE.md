@@ -249,6 +249,50 @@ wt cleanup --force
 
 ---
 
+### wt setup
+
+Interactively configure worktree management.
+
+```bash
+wt setup [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Configure global defaults (`remote`, `fetch_interval`) |
+| `--personal` | Save per-repo overrides to personal config (`~/.config/wt/config.yaml`) |
+| `--shared` | Save to repository (`.wt.yaml`) |
+
+Flags are mutually exclusive. If none is provided, you are prompted to choose.
+
+**Behavior:**
+
+- Detects defaults (default branch, repo basename for worktree directory)
+- Pre-populates from existing configuration if present
+- **Global mode:** configures `remote` and `fetch_interval` in `~/.config/wt/config.yaml`. If remote is empty (local-only), `fetch_interval` is skipped.
+- **Personal mode:** saves `worktree_dir`, `branch_pattern`, `default_branch`, and `remote` to per-repo user config. If remote is set, also prompts for `fetch_interval`.
+- **Shared mode:** saves `worktree_dir`, `branch_pattern`, `default_branch` to `.wt.yaml`. Then asks if you'd also like to configure personal settings (`remote`, `fetch_interval`) for this repo.
+
+**Example:**
+
+```bash
+# Interactive setup (choose global, personal, or shared)
+wt setup
+
+# Set global defaults for all repos
+wt setup --global
+
+# Configure personal per-repo settings
+wt setup --personal
+
+# Create shared .wt.yaml for the team
+wt setup --shared
+```
+
+---
+
 ### wt config
 
 Get and set user configuration options.
@@ -268,10 +312,13 @@ wt config [key] [value] [flags]
 
 **Configuration keys:**
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| [`remote`](#remote) | `""` (empty) | Remote to compare against |
-| [`fetch_interval`](#fetch_interval) | `5m` | Minimum time between fetches |
+| Key | Default | Scope | Description |
+|-----|---------|-------|-------------|
+| [`remote`](#remote) | `""` (empty) | global/per-repo | Remote to compare against |
+| [`fetch_interval`](#fetch_interval) | `5m` | global/per-repo | Minimum time between fetches |
+| [`worktree_dir`](#worktree_dir) | `../<repo>-worktrees` | per-repo only | Directory for worktrees |
+| [`branch_pattern`](#branch_pattern) | `{name}` | per-repo only | Branch naming pattern |
+| [`default_branch`](#default_branch) | auto-detected | per-repo only | Default branch for comparison |
 
 **Examples:**
 
@@ -398,7 +445,9 @@ wt completion <shell>
 
 ### Repository Configuration
 
-Repository-specific settings are stored in `.wt.yaml` at the repository root. This file is required for `wt` to operate.
+Repository-specific settings can be stored in `.wt.yaml` at the repository root. This file is optional — `wt` works without it using defaults and personal configuration.
+
+When `.wt.yaml` is present, it provides shared team settings. Personal config (set via `wt config` or `wt setup --personal`) overrides `.wt.yaml` for `worktree_dir`, `branch_pattern`, and `default_branch`. Hooks and index settings are only read from `.wt.yaml`.
 
 **Full schema:**
 
@@ -433,8 +482,11 @@ Directory where worktrees are created, relative to the repository root.
 
 | | |
 |---|---|
-| **Default** | `worktrees` |
+| **Default (with .wt.yaml)** | `worktrees` |
+| **Default (without .wt.yaml)** | `../<repo-name>-worktrees` (sibling directory) |
 | **Example** | `worktree_dir: .worktrees` |
+
+Can also be set per-repo in personal config via `wt config worktree_dir ../my-worktrees`.
 
 #### branch_pattern
 
@@ -475,7 +527,7 @@ User preferences are stored in `~/.config/wt/config.yaml`. These settings contro
 **File structure:**
 
 ```yaml
-# Global settings
+# Global settings (remote and fetch_interval only)
 remote: origin
 fetch_interval: 5m
 
@@ -484,12 +536,15 @@ repos:
   /path/to/repo:
     remote: upstream
     fetch_interval: 10m
+    worktree_dir: ../my-worktrees
+    branch_pattern: user/{name}
+    default_branch: develop
   /path/to/another/repo:
     remote: ""
     fetch_interval: never
 ```
 
-**Precedence:** Per-repo settings override global settings.
+**Precedence:** Per-repo personal settings override global settings. Personal `worktree_dir`, `branch_pattern`, and `default_branch` override `.wt.yaml` values.
 
 #### remote
 
