@@ -130,6 +130,9 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Resolve link context for PR hyperlinks (checks remote URL + TTY)
+	links := NewLinkContext(setup.RepoRoot, cmd.OutOrStdout())
+
 	// Display candidates
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "Worktrees eligible for cleanup:")
@@ -150,7 +153,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Print header and rows with dynamic widths
 	_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, "NAME", branchWidth, "BRANCH", "STATUS")
 	for _, c := range candidates {
-		statusStr := FormatCompactStatus(c.status)
+		statusStr := FormatCompactStatus(c.status, links)
 		_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, c.name, branchWidth, c.branch, statusStr)
 	}
 	_, _ = fmt.Fprintln(out)

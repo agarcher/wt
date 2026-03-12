@@ -24,6 +24,7 @@ type VerboseInfo struct {
 	Status        *git.WorktreeStatus
 	CurrentMarker string
 	HookOutput    string
+	Links         LinkContext
 }
 
 // PrintVerboseWorktree prints a single worktree in verbose format
@@ -78,7 +79,7 @@ func collectBuiltinPairs(info VerboseInfo) []KeyValue {
 		})
 	}
 
-	statusStr := FormatCompactStatus(info.Status)
+	statusStr := FormatCompactStatus(info.Status, info.Links)
 	if statusStr != "" {
 		pairs = append(pairs, KeyValue{Key: "Status", Value: statusStr})
 	}

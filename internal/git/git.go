@@ -13,6 +13,38 @@ import (
 	"time"
 )
 
+// sshURLRegex matches SSH-style git URLs:
+//   - scp-style: git@github.com:owner/repo.git
+//   - URI-style: ssh://git@github.com/owner/repo.git
+var sshURLRegex = regexp.MustCompile(`^(?:git@github\.com:|ssh://git@github\.com/)(.+?)(?:\.git)?$`)
+
+// httpsURLRegex matches HTTPS GitHub URLs like https://github.com/owner/repo.git
+var httpsURLRegex = regexp.MustCompile(`^https://github\.com/(.+?)(?:\.git)?$`)
+
+// GetRemoteURL returns the GitHub HTTPS base URL for the given remote (e.g. "https://github.com/owner/repo").
+// Returns empty string if the remote is not a GitHub URL or on error.
+func GetRemoteURL(repoRoot, remote string) string {
+	cmd := exec.Command("git", "remote", "get-url", remote)
+	cmd.Dir = repoRoot
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return ParseGitHubURL(strings.TrimSpace(string(output)))
+}
+
+// ParseGitHubURL converts a git remote URL (SSH or HTTPS) to a GitHub HTTPS base URL.
+// Returns empty string if the URL is not a recognized GitHub URL.
+func ParseGitHubURL(rawURL string) string {
+	if m := sshURLRegex.FindStringSubmatch(rawURL); len(m) >= 2 {
+		return "https://github.com/" + m[1]
+	}
+	if m := httpsURLRegex.FindStringSubmatch(rawURL); len(m) >= 2 {
+		return "https://github.com/" + m[1]
+	}
+	return ""
+}
+
 // Worktree represents a git worktree
 type Worktree struct {
 	Path   string

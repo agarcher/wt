@@ -1116,6 +1116,79 @@ func TestRefExists(t *testing.T) {
 	}
 }
 
+func TestParseGitHubURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{
+			name: "SSH URL",
+			url:  "git@github.com:owner/repo.git",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "SSH URL without .git",
+			url:  "git@github.com:owner/repo",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "HTTPS URL",
+			url:  "https://github.com/owner/repo.git",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "HTTPS URL without .git",
+			url:  "https://github.com/owner/repo",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "non-GitHub SSH",
+			url:  "git@gitlab.com:owner/repo.git",
+			want: "",
+		},
+		{
+			name: "non-GitHub HTTPS",
+			url:  "https://gitlab.com/owner/repo.git",
+			want: "",
+		},
+		{
+			name: "empty string",
+			url:  "",
+			want: "",
+		},
+		{
+			name: "SSH URL with org/repo path",
+			url:  "git@github.com:my-org/my-repo.git",
+			want: "https://github.com/my-org/my-repo",
+		},
+		{
+			name: "SSH URI-style URL",
+			url:  "ssh://git@github.com/owner/repo.git",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "SSH URI-style URL without .git",
+			url:  "ssh://git@github.com/owner/repo",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "non-GitHub SSH URI-style",
+			url:  "ssh://git@gitlab.com/owner/repo.git",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseGitHubURL(tt.url)
+			if got != tt.want {
+				t.Errorf("ParseGitHubURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFetchRemoteQuiet(t *testing.T) {
 	repoRoot, cleanup := setupTestRepo(t)
 	defer cleanup()
