@@ -25,6 +25,18 @@ func resetFlags() {
 	configShowOrigin = false
 	setupPersonal = false
 	setupShared = false
+	setupGlobal = false
+
+	// Reset Changed state on setup flags to avoid cobra mutual exclusivity false positives
+	if f := setupCmd.Flags().Lookup("personal"); f != nil {
+		f.Changed = false
+	}
+	if f := setupCmd.Flags().Lookup("shared"); f != nil {
+		f.Changed = false
+	}
+	if f := setupCmd.Flags().Lookup("global"); f != nil {
+		f.Changed = false
+	}
 }
 
 // setupTestRepo creates a temporary git repository with .wt.yaml for testing

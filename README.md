@@ -69,7 +69,7 @@ wt exit                   # Return to main repo
 wt delete feature-x       # Delete worktree and branch
 ```
 
-**Optional:** Run `wt setup` to customize settings (worktree directory, branch pattern, etc.) either for yourself or shared with your team via `.wt.yaml`.
+**Optional:** Run `wt setup` to customize settings — choose global defaults, personal per-repo overrides, or shared team config via `.wt.yaml`.
 
 ## Commands
 

@@ -251,7 +251,7 @@ wt cleanup --force
 
 ### wt setup
 
-Interactively configure worktree management for the current repository.
+Interactively configure worktree management.
 
 ```bash
 wt setup [flags]
@@ -261,24 +261,30 @@ wt setup [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--personal` | Save to personal config (`~/.config/wt/config.yaml`) |
+| `--global` | Configure global defaults (`remote`, `fetch_interval`) |
+| `--personal` | Save per-repo overrides to personal config (`~/.config/wt/config.yaml`) |
 | `--shared` | Save to repository (`.wt.yaml`) |
+
+Flags are mutually exclusive. If none is provided, you are prompted to choose.
 
 **Behavior:**
 
-- If neither flag is provided, prompts you to choose personal or shared
 - Detects defaults (default branch, repo basename for worktree directory)
 - Pre-populates from existing configuration if present
-- For personal mode: saves `worktree_dir`, `branch_pattern`, `default_branch`, `remote`, and `fetch_interval` to per-repo user config
-- For shared mode: saves `worktree_dir`, `branch_pattern`, `default_branch` to `.wt.yaml`, and `remote`/`fetch_interval` to user config
+- **Global mode:** configures `remote` and `fetch_interval` in `~/.config/wt/config.yaml`. If remote is empty (local-only), `fetch_interval` is skipped.
+- **Personal mode:** saves `worktree_dir`, `branch_pattern`, `default_branch`, and `remote` to per-repo user config. If remote is set, also prompts for `fetch_interval`.
+- **Shared mode:** saves `worktree_dir`, `branch_pattern`, `default_branch` to `.wt.yaml`. Then asks if you'd also like to configure personal settings (`remote`, `fetch_interval`) for this repo.
 
 **Example:**
 
 ```bash
-# Interactive setup
+# Interactive setup (choose global, personal, or shared)
 wt setup
 
-# Quick personal setup
+# Set global defaults for all repos
+wt setup --global
+
+# Configure personal per-repo settings
 wt setup --personal
 
 # Create shared .wt.yaml for the team

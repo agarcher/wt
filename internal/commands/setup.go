@@ -17,12 +17,14 @@ import (
 var (
 	setupPersonal bool
 	setupShared   bool
+	setupGlobal   bool
 )
 
 func init() {
-	setupCmd.Flags().BoolVar(&setupPersonal, "personal", false, "Save to personal config (~/.config/wt/config.yaml)")
+	setupCmd.Flags().BoolVar(&setupPersonal, "personal", false, "Save to personal config (~/.config/wt/config.yaml) for this repo")
 	setupCmd.Flags().BoolVar(&setupShared, "shared", false, "Save to repository (.wt.yaml)")
-	setupCmd.MarkFlagsMutuallyExclusive("personal", "shared")
+	setupCmd.Flags().BoolVar(&setupGlobal, "global", false, "Configure global defaults (~/.config/wt/config.yaml)")
+	setupCmd.MarkFlagsMutuallyExclusive("personal", "shared", "global")
 	rootCmd.AddCommand(setupCmd)
 }
 
@@ -31,19 +33,47 @@ var setupCmd = &cobra.Command{
 	Short: "Interactive setup for worktree management",
 	Long: `Interactively configure worktree management for the current repository.
 
-Configuration can be saved in two locations:
-  --personal  Save to ~/.config/wt/config.yaml (just for you)
+Configuration can be saved in three modes:
+  --global    Set global defaults in ~/.config/wt/config.yaml (remote, fetch interval)
+  --personal  Save per-repo overrides to ~/.config/wt/config.yaml (just for you)
   --shared    Save to .wt.yaml in the repo root (shared with the team)
 
-If neither flag is provided, you'll be prompted to choose.
+If no flag is provided, you'll be prompted to choose.
 
 Personal config overrides .wt.yaml for worktree_dir, branch_pattern,
 and default_branch. Hooks and index settings are only read from .wt.yaml.`,
 	RunE: runSetup,
 }
 
+// setupInput allows tests to override stdin
+var setupInput *os.File
+
 func runSetup(cmd *cobra.Command, args []string) error {
-	reader := bufio.NewReader(os.Stdin)
+	input := os.Stdin
+	if setupInput != nil {
+		input = setupInput
+	}
+	reader := bufio.NewReader(input)
+
+	// Determine mode
+	mode := ""
+	if setupGlobal {
+		mode = "1"
+	} else if setupPersonal {
+		mode = "2"
+	} else if setupShared {
+		mode = "3"
+	} else {
+		var err error
+		mode, err = prompt(reader, "What would you like to configure?\n  [1] Global defaults (~/.config/wt/config.yaml) — remote, fetch interval\n  [2] Personal repo config (~/.config/wt/config.yaml) — just for you\n  [3] Shared repo config (.wt.yaml) — shared with the team\nChoose", "1")
+		if err != nil {
+			return err
+		}
+	}
+
+	if mode == "1" {
+		return runGlobalSetup(cmd, reader)
+	}
 
 	// Find the main repository root
 	repoRoot, err := config.GetMainRepoRoot()
@@ -53,15 +83,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Repository: %s\n\n", repoRoot)
 
-	// Determine personal vs shared
-	personal := setupPersonal
-	if !setupPersonal && !setupShared {
-		choice, err := prompt(reader, "Where should the configuration be saved?\n  [1] Personal config (~/.config/wt/config.yaml) — just for you\n  [2] Repository (.wt.yaml) — shared with the team\nChoose", "1")
-		if err != nil {
-			return err
-		}
-		personal = choice != "2"
-	}
+	personal := mode == "2"
 
 	// Auto-detect defaults
 	basename := filepath.Base(repoRoot)
@@ -108,10 +130,69 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Prompt for each setting
+	if personal {
+		return runPersonalSetup(cmd, reader, repoRoot, existingRemote, existingFetchInterval, existingWorktreeDir, existingBranchPattern, existingDefaultBranch)
+	}
+	return runSharedSetup(cmd, reader, repoRoot, existingRemote, existingWorktreeDir, existingBranchPattern, existingDefaultBranch)
+}
+
+func runGlobalSetup(cmd *cobra.Command, reader *bufio.Reader) error {
+	cfg, err := userconfig.Load()
+	if err != nil {
+		cfg = userconfig.DefaultUserConfig()
+	}
+
+	existingRemote := cfg.Remote
+	existingFetchInterval := cfg.FetchInterval
+	if existingFetchInterval == "" {
+		existingFetchInterval = userconfig.DefaultFetchInterval
+	}
+
+	remote, err := prompt(reader, "Default remote (empty for local comparison)", existingRemote)
+	if err != nil {
+		return err
+	}
+
+	if err := cfg.SetGlobal("remote", remote); err != nil {
+		return fmt.Errorf("failed to set remote: %w", err)
+	}
+
+	if remote != "" {
+		fetchInterval, err := prompt(reader, "Default fetch interval", existingFetchInterval)
+		if err != nil {
+			return err
+		}
+
+		if err := validateFetchInterval(fetchInterval); err != nil {
+			return err
+		}
+
+		if err := cfg.SetGlobal("fetch_interval", fetchInterval); err != nil {
+			return fmt.Errorf("failed to set fetch_interval: %w", err)
+		}
+	}
+
+	if err := userconfig.Save(cfg); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	configPath, _ := userconfig.GetConfigPath()
+	cmd.Printf("\nConfiguration saved to %s\n", configPath)
+	return nil
+}
+
+func runPersonalSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existingRemote, existingFetchInterval, existingWorktreeDir, existingBranchPattern, existingDefaultBranch string) error {
+	cfg, err := userconfig.Load()
+	if err != nil {
+		cfg = userconfig.DefaultUserConfig()
+	}
+
 	worktreeDir, err := prompt(reader, "Worktree directory", existingWorktreeDir)
 	if err != nil {
 		return err
+	}
+	if strings.TrimSpace(worktreeDir) == "" {
+		return fmt.Errorf("worktree directory cannot be empty")
 	}
 
 	branchPattern, err := prompt(reader, "Branch pattern", existingBranchPattern)
@@ -119,7 +200,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	defaultBranchVal, err := prompt(reader, "Default branch", existingDefaultBranch)
+	defaultBranch, err := prompt(reader, "Default branch", existingDefaultBranch)
 	if err != nil {
 		return err
 	}
@@ -129,41 +210,27 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fetchInterval, err := prompt(reader, "Fetch interval", existingFetchInterval)
-	if err != nil {
-		return err
-	}
-
-	// Validate inputs
-	if strings.TrimSpace(worktreeDir) == "" {
-		return fmt.Errorf("worktree directory cannot be empty")
-	}
-	if fetchInterval != "never" {
-		if _, err := time.ParseDuration(fetchInterval); err != nil {
-			return fmt.Errorf("invalid fetch interval %q: must be a valid duration (e.g., '5m', '1h', '0') or 'never'", fetchInterval)
-		}
-	}
-
-	// Save configuration
-	if personal {
-		return savePersonalConfig(cmd, repoRoot, worktreeDir, branchPattern, defaultBranchVal, remote, fetchInterval)
-	}
-	return saveSharedConfig(cmd, repoRoot, worktreeDir, branchPattern, defaultBranchVal, remote, fetchInterval)
-}
-
-func savePersonalConfig(cmd *cobra.Command, repoRoot, worktreeDir, branchPattern, defaultBranch, remote, fetchInterval string) error {
-	cfg, err := userconfig.Load()
-	if err != nil {
-		cfg = userconfig.DefaultUserConfig()
-	}
-
-	for _, kv := range [][2]string{
+	repoSettings := [][2]string{
 		{"worktree_dir", worktreeDir},
 		{"branch_pattern", branchPattern},
 		{"default_branch", defaultBranch},
 		{"remote", remote},
-		{"fetch_interval", fetchInterval},
-	} {
+	}
+
+	if remote != "" {
+		fetchInterval, err := prompt(reader, "Fetch interval", existingFetchInterval)
+		if err != nil {
+			return err
+		}
+
+		if err := validateFetchInterval(fetchInterval); err != nil {
+			return err
+		}
+
+		repoSettings = append(repoSettings, [2]string{"fetch_interval", fetchInterval})
+	}
+
+	for _, kv := range repoSettings {
 		if err := cfg.SetForRepo(repoRoot, kv[0], kv[1]); err != nil {
 			return fmt.Errorf("failed to set %s: %w", kv[0], err)
 		}
@@ -178,23 +245,58 @@ func savePersonalConfig(cmd *cobra.Command, repoRoot, worktreeDir, branchPattern
 	return nil
 }
 
-func saveSharedConfig(cmd *cobra.Command, repoRoot, worktreeDir, branchPattern, defaultBranch, remote, fetchInterval string) error {
-	cfg := config.DefaultConfig()
+func runSharedSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existingRemote, existingWorktreeDir, existingBranchPattern, existingDefaultBranch string) error {
+	worktreeDir, err := prompt(reader, "Worktree directory", existingWorktreeDir)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(worktreeDir) == "" {
+		return fmt.Errorf("worktree directory cannot be empty")
+	}
 
-	// Load existing .wt.yaml to preserve hooks and index
+	branchPattern, err := prompt(reader, "Branch pattern", existingBranchPattern)
+	if err != nil {
+		return err
+	}
+
+	defaultBranchVal, err := prompt(reader, "Default branch", existingDefaultBranch)
+	if err != nil {
+		return err
+	}
+
+	// Save shared config
+	cfg := config.DefaultConfig()
 	if existing, err := config.Load(repoRoot); err == nil {
 		cfg = existing
 	}
 
 	cfg.WorktreeDir = worktreeDir
 	cfg.BranchPattern = branchPattern
-	cfg.DefaultBranch = defaultBranch
+	cfg.DefaultBranch = defaultBranchVal
 
 	if err := config.Save(repoRoot, cfg); err != nil {
 		return fmt.Errorf("failed to save .wt.yaml: %w", err)
 	}
 
-	// Save remote and fetch_interval to user config (these are always personal)
+	cmd.Printf("\nConfiguration saved to %s\n", filepath.Join(repoRoot, config.ConfigFileName))
+
+	// Ask about personal repo settings
+	cmd.Println()
+	setupPersonalRepo, err := prompt(reader, "Would you also like to configure personal settings for this repository? [y/N]", "n")
+	if err != nil {
+		return err
+	}
+
+	if !strings.EqualFold(setupPersonalRepo, "y") && !strings.EqualFold(setupPersonalRepo, "yes") {
+		return nil
+	}
+
+	cmd.Println()
+	remote, err := prompt(reader, "Remote (empty for local comparison)", existingRemote)
+	if err != nil {
+		return err
+	}
+
 	userCfg, err := userconfig.Load()
 	if err != nil {
 		userCfg = userconfig.DefaultUserConfig()
@@ -203,15 +305,45 @@ func saveSharedConfig(cmd *cobra.Command, repoRoot, worktreeDir, branchPattern, 
 	if err := userCfg.SetForRepo(repoRoot, "remote", remote); err != nil {
 		return fmt.Errorf("failed to set remote: %w", err)
 	}
-	if err := userCfg.SetForRepo(repoRoot, "fetch_interval", fetchInterval); err != nil {
-		return fmt.Errorf("failed to set fetch_interval: %w", err)
+
+	if remote != "" {
+		existingFetchInterval := userconfig.DefaultFetchInterval
+		fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+		if fetchInterval == userconfig.FetchIntervalNever {
+			existingFetchInterval = "never"
+		} else if fetchInterval > 0 {
+			existingFetchInterval = fetchInterval.String()
+		}
+
+		fetchIntervalVal, err := prompt(reader, "Fetch interval", existingFetchInterval)
+		if err != nil {
+			return err
+		}
+
+		if err := validateFetchInterval(fetchIntervalVal); err != nil {
+			return err
+		}
+
+		if err := userCfg.SetForRepo(repoRoot, "fetch_interval", fetchIntervalVal); err != nil {
+			return fmt.Errorf("failed to set fetch_interval: %w", err)
+		}
 	}
 
 	if err := userconfig.Save(userCfg); err != nil {
 		return fmt.Errorf("failed to save user config: %w", err)
 	}
 
-	cmd.Printf("\nConfiguration saved to %s\n", filepath.Join(repoRoot, config.ConfigFileName))
+	configPath, _ := userconfig.GetConfigPath()
+	cmd.Printf("Personal settings saved to %s\n", configPath)
+	return nil
+}
+
+func validateFetchInterval(fetchInterval string) error {
+	if fetchInterval != "never" {
+		if _, err := time.ParseDuration(fetchInterval); err != nil {
+			return fmt.Errorf("invalid fetch interval %q: must be a valid duration (e.g., '5m', '1h', '0') or 'never'", fetchInterval)
+		}
+	}
 	return nil
 }
 
