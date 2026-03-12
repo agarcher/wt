@@ -130,7 +130,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
 		if fetchInterval == userconfig.FetchIntervalNever {
 			existingFetchInterval = "never"
-		} else if fetchInterval > 0 {
+		} else if fetchInterval >= 0 {
 			existingFetchInterval = fetchInterval.String()
 		}
 	}
@@ -316,7 +316,7 @@ func runSharedSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existing
 		fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
 		if fetchInterval == userconfig.FetchIntervalNever {
 			existingFetchInterval = "never"
-		} else if fetchInterval > 0 {
+		} else if fetchInterval >= 0 {
 			existingFetchInterval = fetchInterval.String()
 		}
 

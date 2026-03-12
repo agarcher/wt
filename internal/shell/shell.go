@@ -119,11 +119,17 @@ _wt() {
             '--verbose[Show detailed status]'
           ;;
         config)
-          _arguments \
-            '--global[Set/get global configuration]' \
-            '--unset[Remove a per-repo configuration value]' \
-            '--list[List all configuration values]' \
-            '--show-origin[Show where each value comes from]'
+          # Complete flags and config keys
+          if [[ ${words[$CURRENT]} == -* ]]; then
+            _arguments \
+              '--global[Set/get global configuration]' \
+              '--unset[Remove a per-repo configuration value]' \
+              '--list[List all configuration values]' \
+              '--show-origin[Show where each value comes from]'
+          else
+            local keys=(remote fetch_interval worktree_dir branch_pattern default_branch)
+            _describe 'config key' keys
+          fi
           ;;
       esac
       ;;
@@ -399,6 +405,13 @@ complete -c wt -n "__fish_seen_subcommand_from config" -l global -d "Set/get glo
 complete -c wt -n "__fish_seen_subcommand_from config" -l unset -d "Remove a per-repo configuration value"
 complete -c wt -n "__fish_seen_subcommand_from config" -l list -d "List all configuration values"
 complete -c wt -n "__fish_seen_subcommand_from config" -l show-origin -d "Show where each value comes from"
+
+# Config keys
+complete -c wt -n "__fish_seen_subcommand_from config; and not __fish_seen_subcommand_from remote fetch_interval worktree_dir branch_pattern default_branch" -a "remote" -d "Remote to compare against"
+complete -c wt -n "__fish_seen_subcommand_from config; and not __fish_seen_subcommand_from remote fetch_interval worktree_dir branch_pattern default_branch" -a "fetch_interval" -d "Fetch interval"
+complete -c wt -n "__fish_seen_subcommand_from config; and not __fish_seen_subcommand_from remote fetch_interval worktree_dir branch_pattern default_branch" -a "worktree_dir" -d "Directory for worktrees"
+complete -c wt -n "__fish_seen_subcommand_from config; and not __fish_seen_subcommand_from remote fetch_interval worktree_dir branch_pattern default_branch" -a "branch_pattern" -d "Branch naming pattern"
+complete -c wt -n "__fish_seen_subcommand_from config; and not __fish_seen_subcommand_from remote fetch_interval worktree_dir branch_pattern default_branch" -a "default_branch" -d "Default branch for comparisons"
 
 function wt
   # Check if we're in a git repo

@@ -137,6 +137,9 @@ func TestResolveCorruptUserConfig(t *testing.T) {
 	if resolved.WorktreeDir != "team-dir" {
 		t.Errorf("expected worktree_dir 'team-dir', got %q", resolved.WorktreeDir)
 	}
+	if resolved.Warning == "" {
+		t.Error("expected warning for corrupt user config, got empty string")
+	}
 }
 
 func TestResolvePartialPersonalOverrides(t *testing.T) {

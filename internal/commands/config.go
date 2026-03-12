@@ -174,17 +174,16 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		resolved := config.Resolve(repoRoot)
 		{
 			repoConfig := cfg.Repos[repoRoot]
-			hasRepoFile := config.Exists(repoRoot)
 
-			printOriginField(out, "worktree_dir", 16, repoConfig.WorktreeDir, resolved.WorktreeDir, hasRepoFile, configPath, repoRoot)
-			printOriginField(out, "branch_pattern", 14, repoConfig.BranchPattern, resolved.BranchPattern, hasRepoFile, configPath, repoRoot)
+			printOriginField(out, "worktree_dir", 16, repoConfig.WorktreeDir, resolved.WorktreeDir, resolved.WorktreeDirFromRepo, configPath, repoRoot)
+			printOriginField(out, "branch_pattern", 14, repoConfig.BranchPattern, resolved.BranchPattern, resolved.BranchPatternFromRepo, configPath, repoRoot)
 
 			// default_branch has special handling for empty value
 			defaultDisplay := resolved.DefaultBranch
 			if defaultDisplay == "" {
 				defaultDisplay = "(auto-detected)"
 			}
-			printOriginField(out, "default_branch", 14, repoConfig.DefaultBranch, defaultDisplay, hasRepoFile && resolved.DefaultBranch != "", configPath, repoRoot)
+			printOriginField(out, "default_branch", 14, repoConfig.DefaultBranch, defaultDisplay, resolved.DefaultBranchFromRepo, configPath, repoRoot)
 		}
 	} else {
 		// Not in a repo, just show global values

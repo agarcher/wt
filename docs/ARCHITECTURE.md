@@ -78,11 +78,11 @@ Version is set at build time via ldflags:
 
 This separation is important because the shell wrapper parses stdout to extract paths for `cd` commands.
 
-**Shell-wrapped commands** (`create`, `cd`, `exit`): The shell wrapper captures stdout to extract the path for `cd`. These commands must write the target path to stdout and all messages to stderr. Any extraneous stdout output will break the shell wrapper.
+**Shell-wrapped commands** (`create`, `delete`, `cleanup`): The shell wrapper uses a temp file (`WT_CD_FILE`) to communicate the cd target path from the Go binary. The binary writes the target path to this file, and the wrapper reads it after execution. All messages go to stderr. (`cd`): The shell wrapper captures stdout directly to extract the path for `cd`. (`exit`): The wrapper calls `wt root` and `cd`s to the result.
 
-**Non-wrapped commands** (`list`, `info`, `cleanup`, `config`, `root`, `version`): stdout is displayed directly to the user. These commands write their primary output to stdout via `fmt.Fprintln(cmd.OutOrStdout(), ...)`.
+**Non-wrapped commands** (`list`, `info`, `config`, `root`, `version`): These fall through to the `*` case in the shell wrapper, which runs the binary directly. stdout is displayed directly to the user via `fmt.Fprintln(cmd.OutOrStdout(), ...)`.
 
-**Interactive commands** (`setup`, `delete` with confirmation): These write prompts to stdout via `fmt.Printf()`. This is safe because the shell wrapper only captures stdout for specific subcommands (`create`, `cd`, `exit`) — interactive commands fall through to the `*` case, which runs the binary directly without capturing output.
+**Interactive commands** (`setup`, `delete` with confirmation): These also fall through to `*` when invoked directly, but `delete` is wrapped via the `create|delete|cleanup` case. Prompts use `fmt.Printf()` to write to stdout, which is safe because the wrapper communicates the cd target via the temp file, not stdout capture.
 
 ## Design Decisions
 
@@ -110,7 +110,7 @@ This separation is important because the shell wrapper parses stdout to extract 
 
 Configuration is resolved in layers (later wins):
 
-1. **Defaults** — built-in values (`worktree_dir: worktrees`, `branch_pattern: {name}`)
+1. **Defaults** — built-in values (`worktree_dir: ../<repo>-worktrees`, `branch_pattern: {name}`)
 2. **`.wt.yaml`** (if present) — shared repo config for the team. Only source of hooks and index settings.
 3. **User config** (`~/.config/wt/config.yaml`) — personal per-repo overrides for `worktree_dir`, `branch_pattern`, `default_branch`, plus global/per-repo `remote` and `fetch_interval`.
 

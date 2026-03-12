@@ -45,8 +45,12 @@ func runCd(cmd *cobra.Command, args []string) error {
 		cmd.PrintErrln(cfg.Warning)
 	}
 
-	// Determine the worktree path
-	worktreePath := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir, name))
+	// Validate and determine the worktree path
+	worktreesDir := filepath.Clean(filepath.Join(repoRoot, cfg.WorktreeDir))
+	worktreePath, err := resolveWorktreePath(worktreesDir, name)
+	if err != nil {
+		return err
+	}
 
 	// Check if worktree exists
 	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
