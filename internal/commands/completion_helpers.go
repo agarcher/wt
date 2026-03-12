@@ -21,10 +21,7 @@ func completeWorktreeNames(cmd *cobra.Command, args []string, toComplete string)
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	resolved, err := config.Resolve(repoRoot)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
+	resolved := config.Resolve(repoRoot)
 	cfg := resolved.Config
 
 	worktrees, err := git.ListWorktrees(repoRoot)

@@ -28,7 +28,7 @@ type ResolvedConfig struct {
 //  3. User per-repo config — WorktreeDir, BranchPattern, DefaultBranch override .wt.yaml
 //
 // Hooks and Index only come from .wt.yaml (never from personal config).
-func Resolve(repoRoot string) (*ResolvedConfig, error) {
+func Resolve(repoRoot string) *ResolvedConfig {
 	cfg := DefaultConfig()
 	source := SourceDefault
 
@@ -48,12 +48,12 @@ func Resolve(repoRoot string) (*ResolvedConfig, error) {
 	// Layer user per-repo config on top
 	userCfg, err := userconfig.Load()
 	if err != nil {
-		return &ResolvedConfig{Config: cfg, Source: source}, nil
+		return &ResolvedConfig{Config: cfg, Source: source}
 	}
 
 	repoConfig, hasRepo := userCfg.Repos[repoRoot]
 	if !hasRepo {
-		return &ResolvedConfig{Config: cfg, Source: source}, nil
+		return &ResolvedConfig{Config: cfg, Source: source}
 	}
 
 	if repoConfig.WorktreeDir != nil {
@@ -69,5 +69,5 @@ func Resolve(repoRoot string) (*ResolvedConfig, error) {
 		source = SourceUserRepo
 	}
 
-	return &ResolvedConfig{Config: cfg, Source: source}, nil
+	return &ResolvedConfig{Config: cfg, Source: source}
 }

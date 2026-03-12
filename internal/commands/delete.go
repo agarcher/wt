@@ -53,10 +53,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Resolve(repoRoot)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+	cfg := config.Resolve(repoRoot)
 
 	// Determine which worktree to delete
 	var name string

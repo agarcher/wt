@@ -170,8 +170,8 @@ func printConfigShowOrigin(cmd *cobra.Command, cfg *userconfig.UserConfig) error
 		}
 
 		// Show worktree settings with their source
-		resolved, resolveErr := config.Resolve(repoRoot)
-		if resolveErr == nil {
+		resolved := config.Resolve(repoRoot)
+		{
 			repoConfig := cfg.Repos[repoRoot]
 			fromRepo := resolved.Source >= config.SourceRepoFile
 
@@ -228,10 +228,7 @@ func getConfig(cmd *cobra.Command, cfg *userconfig.UserConfig, key string) error
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), v)
 			} else {
 				// Fall back to resolved config
-				resolved, err := config.Resolve(repoRoot)
-				if err != nil {
-					return err
-				}
+				resolved := config.Resolve(repoRoot)
 				switch key {
 				case "worktree_dir":
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolved.WorktreeDir)

@@ -129,6 +129,26 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestShellScriptsHaveGlobalSetupCompletion(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+		substr string // shell-specific substring to look for
+	}{
+		{"zsh", GenerateZsh(), "'--global[Configure global defaults]'"},
+		{"bash", GenerateBash(), `"--global --personal --shared"`},
+		{"fish", GenerateFish(), `"__fish_seen_subcommand_from setup" -l global`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(tt.script, tt.substr) {
+				t.Errorf("%s script missing global setup completion (expected %q)", tt.name, tt.substr)
+			}
+		})
+	}
+}
+
 func TestShellScriptsHaveComments(t *testing.T) {
 	shells := []string{"zsh", "bash", "fish"}
 

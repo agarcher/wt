@@ -89,10 +89,7 @@ func SetupCompare(cmd *cobra.Command) (*CompareSetup, error) {
 	cmd.Printf("Repository: %s\n", repoRoot)
 
 	// Load repo configuration
-	resolved, err := config.Resolve(repoRoot)
-	if err != nil {
-		resolved = &config.ResolvedConfig{Config: config.DefaultConfig(), Source: config.SourceDefault}
-	}
+	resolved := config.Resolve(repoRoot)
 	cfg := resolved.Config
 
 	comparisonRef, err := resolveComparisonRef(cmd, repoRoot, cfg)

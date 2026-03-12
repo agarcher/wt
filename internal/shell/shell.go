@@ -96,6 +96,7 @@ _wt() {
           ;;
         setup)
           _arguments \
+            '--global[Configure global defaults]' \
             '--personal[Save to personal config]' \
             '--shared[Save to repository .wt.yaml]'
           ;;
@@ -252,7 +253,7 @@ _wt_completions() {
       esac
       ;;
     setup)
-      COMPREPLY=($(compgen -W "--personal --shared" -- "$cur"))
+      COMPREPLY=($(compgen -W "--global --personal --shared" -- "$cur"))
       ;;
     init|completion)
       COMPREPLY=($(compgen -W "zsh bash fish" -- "$cur"))
@@ -377,6 +378,7 @@ complete -c wt -n "__fish_seen_subcommand_from create" -s b -l branch -d "Use ex
 complete -c wt -n "__fish_seen_subcommand_from init completion" -a "zsh bash fish"
 
 # Flags for setup
+complete -c wt -n "__fish_seen_subcommand_from setup" -l global -d "Configure global defaults"
 complete -c wt -n "__fish_seen_subcommand_from setup" -l personal -d "Save to personal config"
 complete -c wt -n "__fish_seen_subcommand_from setup" -l shared -d "Save to repository .wt.yaml"
 

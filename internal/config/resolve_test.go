@@ -36,10 +36,7 @@ func setupResolveTest(t *testing.T) string {
 func TestResolveDefault(t *testing.T) {
 	tmpDir := setupResolveTest(t)
 
-	resolved, err := Resolve(tmpDir)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
+	resolved := Resolve(tmpDir)
 
 	if resolved.Source != SourceDefault {
 		t.Errorf("expected SourceDefault, got %d", resolved.Source)
@@ -65,10 +62,7 @@ func TestResolveWithWtYaml(t *testing.T) {
 		t.Fatalf("failed to write .wt.yaml: %v", err)
 	}
 
-	resolved, err := Resolve(tmpDir)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
+	resolved := Resolve(tmpDir)
 
 	if resolved.Source != SourceRepoFile {
 		t.Errorf("expected SourceRepoFile, got %d", resolved.Source)
@@ -103,10 +97,7 @@ func TestResolvePersonalOverridesWtYaml(t *testing.T) {
 		t.Fatalf("failed to save user config: %v", err)
 	}
 
-	resolved, err := Resolve(tmpDir)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
+	resolved := Resolve(tmpDir)
 
 	if resolved.Source != SourceUserRepo {
 		t.Errorf("expected SourceUserRepo, got %d", resolved.Source)
@@ -138,10 +129,7 @@ func TestResolveCorruptUserConfig(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(tmpDir, ".wt.yaml"), wtYaml, 0644)
 
 	// Should still resolve using .wt.yaml, ignoring corrupt user config
-	resolved, err := Resolve(tmpDir)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
+	resolved := Resolve(tmpDir)
 
 	if resolved.Source != SourceRepoFile {
 		t.Errorf("expected SourceRepoFile, got %d", resolved.Source)
@@ -166,10 +154,7 @@ func TestResolvePartialPersonalOverrides(t *testing.T) {
 	}
 	_ = userconfig.Save(cfg)
 
-	resolved, err := Resolve(tmpDir)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
+	resolved := Resolve(tmpDir)
 
 	if resolved.Source != SourceUserRepo {
 		t.Errorf("expected SourceUserRepo, got %d", resolved.Source)
@@ -208,10 +193,7 @@ hooks:
 	}
 	_ = userconfig.Save(cfg)
 
-	resolved, err := Resolve(tmpDir)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
+	resolved := Resolve(tmpDir)
 
 	// Hooks should be preserved from .wt.yaml
 	if len(resolved.Hooks.PostCreate) != 1 {
