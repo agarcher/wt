@@ -1,1 +1,1 @@
-Add shell completions for delete and info commands and use shared fetch logic in the delete command. Update Go to 1.25 and refresh CI action dependencies.
+Add clickable PR links in list and cleanup output, new wt setup command with personal config support, and improved config validation. Updated CI to Go 1.26.
