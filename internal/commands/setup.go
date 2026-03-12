@@ -114,25 +114,29 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		if repoCfg.DefaultBranch != "" {
 			existingDefaultBranch = repoCfg.DefaultBranch
 		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to load %s: %w", config.ConfigFileName, err)
 	}
 
-	if userCfg, err := userconfig.Load(); err == nil {
-		if v, ok := userCfg.GetForRepo(repoRoot, "worktree_dir"); ok {
-			existingWorktreeDir = v
-		}
-		if v, ok := userCfg.GetForRepo(repoRoot, "branch_pattern"); ok {
-			existingBranchPattern = v
-		}
-		if v, ok := userCfg.GetForRepo(repoRoot, "default_branch"); ok {
-			existingDefaultBranch = v
-		}
-		existingRemote = userCfg.GetRemoteForRepo(repoRoot)
-		fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
-		if fetchInterval == userconfig.FetchIntervalNever {
-			existingFetchInterval = "never"
-		} else if fetchInterval >= 0 {
-			existingFetchInterval = fetchInterval.String()
-		}
+	userCfg, err := userconfig.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load user config: %w", err)
+	}
+	if v, ok := userCfg.GetForRepo(repoRoot, "worktree_dir"); ok {
+		existingWorktreeDir = v
+	}
+	if v, ok := userCfg.GetForRepo(repoRoot, "branch_pattern"); ok {
+		existingBranchPattern = v
+	}
+	if v, ok := userCfg.GetForRepo(repoRoot, "default_branch"); ok {
+		existingDefaultBranch = v
+	}
+	existingRemote = userCfg.GetRemoteForRepo(repoRoot)
+	fetchInterval := userCfg.GetFetchIntervalForRepo(repoRoot)
+	if fetchInterval == userconfig.FetchIntervalNever {
+		existingFetchInterval = "never"
+	} else if fetchInterval >= 0 {
+		existingFetchInterval = fetchInterval.String()
 	}
 
 	if personal {
@@ -144,7 +148,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 func runGlobalSetup(cmd *cobra.Command, reader *bufio.Reader) error {
 	cfg, err := userconfig.Load()
 	if err != nil {
-		cfg = userconfig.DefaultUserConfig()
+		return fmt.Errorf("failed to load user config: %w", err)
 	}
 
 	existingRemote := cfg.Remote
@@ -189,7 +193,7 @@ func runGlobalSetup(cmd *cobra.Command, reader *bufio.Reader) error {
 func runPersonalSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existingRemote, existingFetchInterval, existingWorktreeDir, existingBranchPattern, existingDefaultBranch string) error {
 	cfg, err := userconfig.Load()
 	if err != nil {
-		cfg = userconfig.DefaultUserConfig()
+		return fmt.Errorf("failed to load user config: %w", err)
 	}
 
 	worktreeDir, err := prompt(reader, "Worktree directory", existingWorktreeDir)
@@ -269,10 +273,12 @@ func runSharedSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existing
 		return err
 	}
 
-	// Save shared config
+	// Save shared config — preserve existing hooks/index from .wt.yaml
 	cfg := config.DefaultConfig()
 	if existing, err := config.Load(repoRoot); err == nil {
 		cfg = existing
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to load %s: %w", config.ConfigFileName, err)
 	}
 
 	cfg.WorktreeDir = worktreeDir
@@ -304,7 +310,7 @@ func runSharedSetup(cmd *cobra.Command, reader *bufio.Reader, repoRoot, existing
 
 	userCfg, err := userconfig.Load()
 	if err != nil {
-		userCfg = userconfig.DefaultUserConfig()
+		return fmt.Errorf("failed to load user config: %w", err)
 	}
 
 	if err := userCfg.SetForRepo(repoRoot, "remote", remote); err != nil {
