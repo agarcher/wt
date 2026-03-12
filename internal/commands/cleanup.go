@@ -150,7 +150,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Print header and rows with dynamic widths
 	_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, "NAME", branchWidth, "BRANCH", "STATUS")
 	for _, c := range candidates {
-		statusStr := FormatCompactStatus(c.status)
+		statusStr := FormatCompactStatus(c.status, "")
 		_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, c.name, branchWidth, c.branch, statusStr)
 	}
 	_, _ = fmt.Fprintln(out)
