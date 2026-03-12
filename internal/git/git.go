@@ -13,8 +13,10 @@ import (
 	"time"
 )
 
-// sshURLRegex matches SSH-style git URLs like git@github.com:owner/repo.git
-var sshURLRegex = regexp.MustCompile(`^git@github\.com:(.+?)(?:\.git)?$`)
+// sshURLRegex matches SSH-style git URLs:
+//   - scp-style: git@github.com:owner/repo.git
+//   - URI-style: ssh://git@github.com/owner/repo.git
+var sshURLRegex = regexp.MustCompile(`^(?:git@github\.com:|ssh://git@github\.com/)(.+?)(?:\.git)?$`)
 
 // httpsURLRegex matches HTTPS GitHub URLs like https://github.com/owner/repo.git
 var httpsURLRegex = regexp.MustCompile(`^https://github\.com/(.+?)(?:\.git)?$`)

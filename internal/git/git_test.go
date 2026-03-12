@@ -1162,6 +1162,21 @@ func TestParseGitHubURL(t *testing.T) {
 			url:  "git@github.com:my-org/my-repo.git",
 			want: "https://github.com/my-org/my-repo",
 		},
+		{
+			name: "SSH URI-style URL",
+			url:  "ssh://git@github.com/owner/repo.git",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "SSH URI-style URL without .git",
+			url:  "ssh://git@github.com/owner/repo",
+			want: "https://github.com/owner/repo",
+		},
+		{
+			name: "non-GitHub SSH URI-style",
+			url:  "ssh://git@gitlab.com/owner/repo.git",
+			want: "",
+		},
 	}
 
 	for _, tt := range tests {

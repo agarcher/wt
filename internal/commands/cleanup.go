@@ -130,8 +130,8 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Resolve remote URL for PR hyperlinks
-	repoURL := git.GetRemoteURL(setup.RepoRoot, "origin")
+	// Resolve link context for PR hyperlinks (checks remote URL + TTY)
+	links := NewLinkContext(setup.RepoRoot)
 
 	// Display candidates
 	out := cmd.OutOrStdout()
@@ -153,7 +153,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Print header and rows with dynamic widths
 	_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, "NAME", branchWidth, "BRANCH", "STATUS")
 	for _, c := range candidates {
-		statusStr := FormatCompactStatus(c.status, repoURL)
+		statusStr := FormatCompactStatus(c.status, links)
 		_, _ = fmt.Fprintf(out, "  %-*s  %-*s  %s\n", nameWidth, c.name, branchWidth, c.branch, statusStr)
 	}
 	_, _ = fmt.Fprintln(out)

@@ -114,7 +114,7 @@ func TestFormatCompactStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatCompactStatus(tt.status, "")
+			got := FormatCompactStatus(tt.status, LinkContext{})
 
 			// Strip ANSI codes for content comparison
 			stripped := stripANSI(got)
@@ -171,7 +171,7 @@ func TestFormatCompactStatusInProgressRequiresUnmerged(t *testing.T) {
 				CommitsAhead: tt.commitsAhead,
 				IsMerged:     tt.isMerged,
 			}
-			got := stripANSI(FormatCompactStatus(status, ""))
+			got := stripANSI(FormatCompactStatus(status, LinkContext{}))
 
 			if tt.wantStatus == "" {
 				if strings.Contains(got, "[") {
@@ -219,7 +219,7 @@ func TestDirtyIsAdditive(t *testing.T) {
 
 	for _, tt := range states {
 		t.Run(tt.name+" with dirty", func(t *testing.T) {
-			got := stripANSI(FormatCompactStatus(tt.status, ""))
+			got := stripANSI(FormatCompactStatus(tt.status, LinkContext{}))
 
 			// Should contain both the state and dirty
 			if !strings.Contains(got, tt.name) {
@@ -238,10 +238,10 @@ func TestDirtyIsAdditive(t *testing.T) {
 
 func TestFormatMergedStatus(t *testing.T) {
 	tests := []struct {
-		name    string
-		prs     []string
-		repoURL string
-		want    string
+		name  string
+		prs   []string
+		links LinkContext
+		want  string
 	}{
 		{
 			name: "no PRs",
@@ -249,32 +249,44 @@ func TestFormatMergedStatus(t *testing.T) {
 			want: "merged",
 		},
 		{
-			name: "single PR without repo URL",
+			name: "single PR without links",
 			prs:  []string{"#42"},
 			want: "merged in #42",
 		},
 		{
-			name: "multiple PRs without repo URL",
+			name: "multiple PRs without links",
 			prs:  []string{"#1", "#2"},
 			want: "merged in #1, #2",
 		},
 		{
-			name:    "single PR with repo URL",
-			prs:     []string{"#42"},
-			repoURL: "https://github.com/owner/repo",
-			want:    "merged in \033]8;;https://github.com/owner/repo/pull/42\033\\#42\033]8;;\033\\",
+			name:  "single PR with links enabled",
+			prs:   []string{"#42"},
+			links: LinkContext{RepoURL: "https://github.com/owner/repo", IsTTY: true},
+			want:  "merged in \033]8;;https://github.com/owner/repo/pull/42\033\\#42\033]8;;\033\\",
 		},
 		{
-			name:    "multiple PRs with repo URL",
-			prs:     []string{"#1", "#2"},
-			repoURL: "https://github.com/owner/repo",
-			want:    "merged in \033]8;;https://github.com/owner/repo/pull/1\033\\#1\033]8;;\033\\, \033]8;;https://github.com/owner/repo/pull/2\033\\#2\033]8;;\033\\",
+			name:  "multiple PRs with links enabled",
+			prs:   []string{"#1", "#2"},
+			links: LinkContext{RepoURL: "https://github.com/owner/repo", IsTTY: true},
+			want:  "merged in \033]8;;https://github.com/owner/repo/pull/1\033\\#1\033]8;;\033\\, \033]8;;https://github.com/owner/repo/pull/2\033\\#2\033]8;;\033\\",
+		},
+		{
+			name:  "repo URL but not a TTY - no links",
+			prs:   []string{"#42"},
+			links: LinkContext{RepoURL: "https://github.com/owner/repo", IsTTY: false},
+			want:  "merged in #42",
+		},
+		{
+			name:  "TTY but no repo URL - no links",
+			prs:   []string{"#42"},
+			links: LinkContext{RepoURL: "", IsTTY: true},
+			want:  "merged in #42",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatMergedStatus(tt.prs, tt.repoURL)
+			got := FormatMergedStatus(tt.prs, tt.links)
 			if got != tt.want {
 				t.Errorf("FormatMergedStatus() = %q, want %q", got, tt.want)
 			}
@@ -282,18 +294,37 @@ func TestFormatMergedStatus(t *testing.T) {
 	}
 }
 
-func TestFormatCompactStatusWithRepoURL(t *testing.T) {
+func TestFormatCompactStatusWithLinks(t *testing.T) {
 	status := &git.WorktreeStatus{
 		IsMerged:  true,
 		MergedPRs: []string{"#99"},
 	}
-	got := FormatCompactStatus(status, "https://github.com/owner/repo")
+	links := LinkContext{RepoURL: "https://github.com/owner/repo", IsTTY: true}
+	got := FormatCompactStatus(status, links)
 
 	// Should contain OSC 8 hyperlink
 	if !strings.Contains(got, "\033]8;;https://github.com/owner/repo/pull/99\033\\") {
 		t.Errorf("expected OSC 8 link in output, got %q", got)
 	}
 	// Should still contain the visible text
+	if !strings.Contains(got, "#99") {
+		t.Errorf("expected #99 in output, got %q", got)
+	}
+}
+
+func TestFormatCompactStatusNoLinksWhenNotTTY(t *testing.T) {
+	status := &git.WorktreeStatus{
+		IsMerged:  true,
+		MergedPRs: []string{"#99"},
+	}
+	links := LinkContext{RepoURL: "https://github.com/owner/repo", IsTTY: false}
+	got := FormatCompactStatus(status, links)
+
+	// Should NOT contain OSC 8 sequences
+	if strings.Contains(got, "\033]8;;") {
+		t.Errorf("expected no OSC 8 link when not a TTY, got %q", got)
+	}
+	// Should contain plain text
 	if !strings.Contains(got, "#99") {
 		t.Errorf("expected #99 in output, got %q", got)
 	}

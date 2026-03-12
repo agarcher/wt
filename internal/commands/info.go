@@ -108,6 +108,9 @@ func runInfo(cmd *cobra.Command, args []string) error {
 		hookOutput, _ = hooks.RunInfo(setup.Config, env)
 	}
 
+	// Resolve link context for PR hyperlinks (checks remote URL + TTY)
+	links := NewLinkContext(setup.RepoRoot)
+
 	// Print output
 	out := cmd.OutOrStdout()
 	separator := strings.Repeat("=", 80)
@@ -121,6 +124,7 @@ func runInfo(cmd *cobra.Command, args []string) error {
 		Status:        status,
 		CurrentMarker: currentMarker,
 		HookOutput:    hookOutput,
+		Links:         links,
 	})
 	_, _ = fmt.Fprintln(out, separator)
 

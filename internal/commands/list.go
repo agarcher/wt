@@ -114,14 +114,14 @@ func runList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Resolve remote URL for PR hyperlinks
-	repoURL := git.GetRemoteURL(setup.RepoRoot, "origin")
+	// Resolve link context for PR hyperlinks (checks remote URL + TTY)
+	links := NewLinkContext(setup.RepoRoot)
 
 	// Print based on verbose flag
 	if verboseFlag {
-		printVerboseWorktrees(cmd, managedWorktrees, setup.Config, setup.RepoRoot, repoURL)
+		printVerboseWorktrees(cmd, managedWorktrees, setup.Config, setup.RepoRoot, links)
 	} else {
-		printCompactWorktrees(cmd, managedWorktrees, repoURL)
+		printCompactWorktrees(cmd, managedWorktrees, links)
 	}
 
 	return nil
@@ -129,7 +129,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 
 // printCompactWorktrees prints worktrees in compact table format
-func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, repoURL string) {
+func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, links LinkContext) {
 	out := cmd.OutOrStdout()
 
 	// Calculate column widths based on content
@@ -147,7 +147,7 @@ func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, repoURL
 	// Print header and rows with dynamic widths
 	_, _ = fmt.Fprintf(out, "  %-*s  %5s  %-*s  %s\n", nameWidth, "NAME", "INDEX", branchWidth, "BRANCH", "STATUS")
 	for _, wt := range worktrees {
-		statusStr := FormatCompactStatus(wt.status, repoURL)
+		statusStr := FormatCompactStatus(wt.status, links)
 		indexStr := "-"
 		if wt.index > 0 {
 			indexStr = fmt.Sprintf("%d", wt.index)
@@ -157,7 +157,7 @@ func printCompactWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, repoURL
 }
 
 // printVerboseWorktrees prints worktrees in detailed multi-line format
-func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, cfg *config.Config, repoRoot string, repoURL string) {
+func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, cfg *config.Config, repoRoot string, links LinkContext) {
 	out := cmd.OutOrStdout()
 	separator := strings.Repeat("=", 80)
 
@@ -185,7 +185,7 @@ func printVerboseWorktrees(cmd *cobra.Command, worktrees []worktreeInfo, cfg *co
 			Index:         wt.index,
 			CurrentMarker: wt.currentMarker,
 			HookOutput:    hookOutput,
-			RepoURL:       repoURL,
+			Links:         links,
 		}
 		if wt.status != nil {
 			info.CreatedAt = wt.status.CreatedAt
