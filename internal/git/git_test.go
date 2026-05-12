@@ -167,6 +167,59 @@ func TestBranchExists(t *testing.T) {
 	}
 }
 
+// TestBranchExistsRemoteOnly verifies that a branch existing only as a
+// remote-tracking ref (e.g., a fetched but never-checked-out branch like
+// `ren-bot/foo`) is treated as existing. `git worktree add` will DWIM such a
+// name into a tracking branch, so the pre-check must agree.
+func TestBranchExistsRemoteOnly(t *testing.T) {
+	repoRoot, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	// Set up a second repo to act as the "remote" and create a branch in it
+	// with a "/" in the name, then fetch it into the test repo as a
+	// remote-tracking ref only (no local branch).
+	remoteDir, err := os.MkdirTemp("", "wt-git-test-remote-*")
+	if err != nil {
+		t.Fatalf("failed to create remote temp dir: %v", err)
+	}
+	remoteDir, err = filepath.EvalSymlinks(remoteDir)
+	if err != nil {
+		t.Fatalf("failed to eval symlinks: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(remoteDir) }()
+
+	for _, c := range [][]string{
+		{"git", "init", "--bare"},
+	} {
+		cmd := exec.Command(c[0], c[1:]...)
+		cmd.Dir = remoteDir
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("%v failed: %v", c, err)
+		}
+	}
+
+	// Push a branch with a "/" in the name from the test repo to the remote,
+	// then delete the local copy so it exists only as a remote-tracking ref.
+	const remoteBranch = "ren-bot/simplify-bug-delegation-no-owner"
+	for _, c := range [][]string{
+		{"git", "remote", "add", "origin", remoteDir},
+		{"git", "branch", remoteBranch},
+		{"git", "push", "origin", remoteBranch},
+		{"git", "branch", "-D", remoteBranch},
+		{"git", "fetch", "origin"},
+	} {
+		cmd := exec.Command(c[0], c[1:]...)
+		cmd.Dir = repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v failed: %v\n%s", c, err, out)
+		}
+	}
+
+	if !BranchExists(repoRoot, remoteBranch) {
+		t.Errorf("expected remote-only branch %q to be reported as existing", remoteBranch)
+	}
+}
+
 func TestGetCurrentBranch(t *testing.T) {
 	repoRoot, cleanup := setupTestRepo(t)
 	defer cleanup()
