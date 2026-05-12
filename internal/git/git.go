@@ -126,11 +126,34 @@ func ListWorktrees(repoRoot string) ([]Worktree, error) {
 	return worktrees, scanner.Err()
 }
 
-// BranchExists checks if a branch exists
+// BranchExists checks if a branch exists locally or as a remote-tracking branch.
+// Remote-tracking matches mirror `git worktree add`'s DWIM behavior, which creates
+// a local tracking branch when the name resolves to a unique remote branch.
 func BranchExists(repoRoot, branchName string) bool {
 	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
 	cmd.Dir = repoRoot
-	return cmd.Run() == nil
+	if cmd.Run() == nil {
+		return true
+	}
+
+	cmd = exec.Command("git", "remote")
+	cmd.Dir = repoRoot
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	for _, remote := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		remote = strings.TrimSpace(remote)
+		if remote == "" {
+			continue
+		}
+		cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/remotes/"+remote+"/"+branchName)
+		cmd.Dir = repoRoot
+		if cmd.Run() == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // GetCurrentBranch returns the current branch name
